@@ -276,6 +276,16 @@ Schedule::command('inbox:triage-messages')
     ->withoutOverlapping(15)
     ->runInBackground();
 
+// Tenant Easy Fix board: read each new tenant reply after the how-to text
+// and label the card "Ready to close" (with the AI's confidence) when the
+// tenant says the fix worked. Labels only — never closes or moves a work
+// order; a coordinator does that. TENANT_EASY_FIX_READY_JUDGE_ENABLED=false
+// switches it off without losing stored readings.
+Schedule::command('easy-fix:judge-replies')
+    ->everyTenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();
+
 // Auto-tick checklist tasks the database already proves done (category/zone/
 // plan filled, vendor assigned, schedule set, photos or invoice uploaded,
 // photos synced/published), so coordinators stop re-confirming facts the

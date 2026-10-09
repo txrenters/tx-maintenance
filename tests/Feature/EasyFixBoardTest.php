@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiInsight;
+use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
 use App\Models\User;
@@ -208,6 +210,45 @@ class EasyFixBoardTest extends TestCase
         $token->forceFill(['created_at' => '2026-09-28 10:00:00'])->save();
 
         $this->assertFalse($this->boardCards()[5012]['easy_fix']['tenant_replied']);
+    }
+
+    /**
+     * The AI's reading of the tenant's reply rides on the card: a confident
+     * "it is fixed" is the Ready to close label, with the confidence; the
+     * newest reading wins, and a card with no reading carries none.
+     */
+    public function test_a_card_carries_the_ready_to_close_reading(): void
+    {
+        $workOrder = $this->makeWorkOrder(5013, ['easy_fix_key' => 'gfci_outlet']);
+        $this->makeWorkOrder(5014, ['easy_fix_key' => 'gfci_outlet']);
+
+        foreach ([
+            ['id' => 71, 'confidence' => 90, 'ready' => false, 'resolved' => false, 'reason' => 'Still dead.'],
+            ['id' => 72, 'confidence' => 94, 'ready' => true, 'resolved' => true, 'reason' => 'The outlet works after the reset.'],
+        ] as $reading) {
+            DB::table('ai_insights')->insert([
+                'work_order_id' => $workOrder->id,
+                'type' => AiInsight::TYPE_EASY_FIX_READY,
+                'subject_type' => Conversation::class,
+                'subject_id' => $reading['id'],
+                'status' => AiInsight::STATUS_OPEN,
+                'confidence' => $reading['confidence'],
+                'data' => json_encode(['ready' => $reading['ready'], 'resolved' => $reading['resolved'], 'reason' => $reading['reason']]),
+                'generated_at' => '2026-09-29 10:00:00',
+                'created_at' => '2026-09-29 10:00:00',
+                'updated_at' => '2026-09-29 10:00:00',
+            ]);
+        }
+
+        $cards = $this->boardCards();
+
+        $this->assertTrue($cards[5013]['easy_fix']['ready_to_close']);
+        $this->assertSame(94, $cards[5013]['easy_fix']['reply_confidence']);
+        $this->assertTrue($cards[5013]['easy_fix']['reply_resolved']);
+        $this->assertSame('The outlet works after the reset.', $cards[5013]['easy_fix']['reply_reason']);
+
+        $this->assertFalse($cards[5014]['easy_fix']['ready_to_close']);
+        $this->assertNull($cards[5014]['easy_fix']['reply_confidence']);
     }
 
     /**

@@ -402,6 +402,15 @@ return [
         'easy_fix_judge' => env('TENANT_EASY_FIX_AI_JUDGE_ENABLED', true),
         'easy_fix_min_confidence' => (int) env('TENANT_EASY_FIX_AI_MIN_CONFIDENCE', 70),
 
+        // After the how-to text, the AI reads each tenant reply on the Tenant
+        // Easy Fix board and, when the tenant says the fix worked, labels the
+        // card "Ready to close" with its confidence (Earl, 2026-10-09). The
+        // label never closes the work order or moves its status; a
+        // coordinator does that. Below the bar, no provider or an AI error =
+        // no label. Off = replies are not read.
+        'easy_fix_reply_judge' => env('TENANT_EASY_FIX_READY_JUDGE_ENABLED', true),
+        'easy_fix_ready_min_confidence' => (int) env('TENANT_EASY_FIX_READY_MIN_CONFIDENCE', 80),
+
         // Before the system ticks "Have you Completed the Repair" on a THMP
         // work order (one with a Jobber job), the AI reads the technician's
         // Jobber notes: a tapped

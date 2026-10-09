@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\TenantEasyFixCriteria;
+use App\Models\AiInsight;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
@@ -26,7 +27,8 @@ class EasyFixBoardDetails
      * @return array<int, array{
      *     item: ?string, video_url: ?string, flagged: bool, hoa: bool, verdict_reason: ?string, status_set: bool,
      *     texted: bool, check_ins: int, check_ins_max: int, last_check_in_at: ?string,
-     *     photo_uploaded: bool, tenant_replied: bool
+     *     photo_uploaded: bool, tenant_replied: bool,
+     *     ready_to_close: bool, reply_resolved: ?bool, reply_confidence: ?int, reply_reason: ?string
      * }>
      */
     public function for(array $workOrderIds): array
@@ -89,6 +91,26 @@ class EasyFixBoardDetails
             ->groupBy('work_order_id')
             ->pluck('last_at', 'work_order_id');
 
+        // The AI's newest reading of the tenant's reply per work order (newest
+        // id last so keyBy keeps it). Indexed columns only; the JSON payload
+        // is decoded here, never in SQL.
+        $replyReadings = DB::table('ai_insights')
+            ->where('type', AiInsight::TYPE_EASY_FIX_READY)
+            ->whereIn('work_order_id', $workOrderIds)
+            ->orderBy('id')
+            ->get(['work_order_id', 'confidence', 'data'])
+            ->keyBy('work_order_id')
+            ->map(function (object $row): array {
+                $data = is_array($row->data) ? $row->data : (json_decode((string) $row->data, true) ?: []);
+
+                return [
+                    'ready' => (bool) ($data['ready'] ?? false),
+                    'resolved' => (bool) ($data['resolved'] ?? false),
+                    'confidence' => (int) $row->confidence,
+                    'reason' => (string) ($data['reason'] ?? ''),
+                ];
+            });
+
         $details = [];
 
         foreach ($workOrderIds as $id) {
@@ -98,6 +120,7 @@ class EasyFixBoardDetails
             $checkIns = $events->get('tenant_easy_fix_follow_up_sms');
             $token = $tokens->get($id);
             $lastReply = $lastTenantMessage->get($id);
+            $reading = $replyReadings->get($id);
 
             $details[$id] = [
                 'item' => $item['label'] ?? $workOrder?->easy_fix_key,
@@ -112,6 +135,10 @@ class EasyFixBoardDetails
                 'last_check_in_at' => $checkIns->last_at ?? null,
                 'photo_uploaded' => $token?->completed_at !== null,
                 'tenant_replied' => $token !== null && $lastReply !== null && $lastReply >= $token->created_at->toDateTimeString(),
+                'ready_to_close' => (bool) ($reading['ready'] ?? false),
+                'reply_resolved' => $reading['resolved'] ?? null,
+                'reply_confidence' => $reading['confidence'] ?? null,
+                'reply_reason' => $reading['reason'] ?? null,
             ];
         }
 

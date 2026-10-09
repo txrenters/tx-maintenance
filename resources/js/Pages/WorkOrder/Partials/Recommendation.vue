@@ -179,8 +179,26 @@ const aiSaysEasyFix = computed(() =>
 const intakeEasyFixKey = computed(
     () => props.recommendation?.work_order?.easy_fix_key ?? null,
 );
+// The AI's reading of the tenant's reply after the how-to text: a confident
+// "it is fixed" labels the work order Ready to close for a coordinator.
+const easyFixReply = computed(
+    () => props.recommendation?.easy_fix_reply ?? null,
+);
+const easyFixReplyConfidence = computed(() =>
+    Number(easyFixReply.value?.confidence ?? 0),
+);
+const easyFixReplyVerdict = computed(() => {
+    const reply = easyFixReply.value;
+    if (!reply) return null;
+    if (reply.ready) return "the tenant says it is fixed";
+    if (reply.resolved) return "the tenant may be saying it is fixed, but not confidently enough to label";
+    return "the tenant says it is not fixed";
+});
 const hasEasyFixAssessment = computed(
-    () => aiSaysEasyFix.value || Boolean(intakeEasyFixKey.value),
+    () =>
+        aiSaysEasyFix.value ||
+        Boolean(intakeEasyFixKey.value) ||
+        Boolean(easyFixReply.value),
 );
 const humanizeKey = (key) => (key ? String(key).replace(/_/g, " ") : "");
 const intakeEasyFixLabel = computed(() => {
@@ -372,7 +390,28 @@ const formatDate = (date) => {
                             <Badge v-if="aiSaysEasyFix" variant="outline">
                                 AI: easy fix{{ aiEasyFixKey ? ` (${humanizeKey(aiEasyFixKey)})` : "" }}
                             </Badge>
+                            <Badge
+                                v-if="easyFixReply?.ready"
+                                class="gap-1 bg-emerald-600 text-white hover:bg-emerald-600"
+                                data-easy-fix-ready
+                            >
+                                <CheckCircle2 class="h-3 w-3" />
+                                Ready to close · {{ easyFixReplyConfidence }}%
+                            </Badge>
                         </div>
+
+                        <p
+                            v-if="easyFixReply"
+                            class="text-sm leading-6 text-muted-foreground"
+                            data-easy-fix-reply
+                        >
+                            Tenant's reply read by AI: {{ easyFixReplyVerdict }}
+                            <span class="tabular-nums">({{ easyFixReplyConfidence }}% confidence)</span>.
+                            {{ easyFixReply.reason }}
+                            <template v-if="easyFixReply.ready">
+                                Nothing closes on its own: close it out when you agree.
+                            </template>
+                        </p>
 
                         <p
                             v-if="intakeEasyFixLabel"

@@ -299,6 +299,22 @@ const cardColor = (work_order) => {
     return checkDueTask(work_order.tasks, work_order.scheduled_end_date);
 };
 
+// The AI's reading of the tenant's easy-fix reply, for the chip tooltips on
+// the Tenant Easy Fix board. Empty until a reply has been read.
+const easyFixReplyReading = (easyFix) => {
+    if (easyFix.reply_confidence === null || easyFix.reply_confidence === undefined) {
+        return "The tenant replied; the AI has not read it yet";
+    }
+
+    const verdict = easyFix.ready_to_close
+        ? "AI read the reply: the tenant says it is fixed"
+        : easyFix.reply_resolved
+            ? "AI read the reply: the tenant may be saying it is fixed, but not confidently enough to label"
+            : "AI read the reply: the tenant says it is not fixed";
+
+    return [`${verdict} (${easyFix.reply_confidence}%)`, easyFix.reply_reason].filter(Boolean).join("\n");
+};
+
 // --- Client-side filters ---------------------------------------------------
 // Everything below narrows the already-loaded board in the browser, so vendor,
 // category, emergency, search, date, and color filtering are all instant.
@@ -667,9 +683,22 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                     </span>
                                     <span
                                         v-if="work_order.easy_fix.tenant_replied"
+                                        :title="easyFixReplyReading(work_order.easy_fix)"
                                         class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                        data-easy-fix-replied
                                     >
                                         Tenant replied
+                                    </span>
+                                    <!-- The AI read the tenant's reply and says the fix worked.
+                                         A label for a coordinator: nothing closes on its own. -->
+                                    <span
+                                        v-if="work_order.easy_fix.ready_to_close"
+                                        :title="easyFixReplyReading(work_order.easy_fix)"
+                                        class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                                        data-easy-fix-ready
+                                    >
+                                        <CircleCheckBig class="w-3 h-3" />
+                                        Ready to close · {{ work_order.easy_fix.reply_confidence }}%
                                     </span>
                                 </div>
                                 <p

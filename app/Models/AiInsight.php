@@ -21,6 +21,13 @@ class AiInsight extends Model
 
     public const TYPE_PHOTO_REVIEW = 'photo_review';
 
+    /**
+     * The AI's reading of a tenant's reply on the Tenant Easy Fix board: does
+     * the tenant say the fix worked? A confident yes labels the card "Ready
+     * to close" for a coordinator. The subject is the Conversation row.
+     */
+    public const TYPE_EASY_FIX_READY = 'easy_fix_ready';
+
     public const STATUS_OPEN = 'open';
 
     public const STATUS_ACCEPTED = 'accepted';
