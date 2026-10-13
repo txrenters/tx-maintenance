@@ -44,15 +44,18 @@ class AutoCompleteTriggeredTasks extends Command
         foreach ($this->candidates() as $workOrder) {
             $label = '#'.($workOrder->work_order_no ?? $workOrder->id);
 
-            if ($dryRun) {
-                foreach ($service->duePhotoRequests($workOrder) as $due) {
-                    $this->line("{$label}: would text the vendor for the {$due['label']} (\"{$due['task']->description}\").");
-                }
+            $due = $service->duePhotoRequests($workOrder);
+
+            foreach ($due as $request) {
+                $verb = $dryRun ? 'would text' : 'texting';
+                $this->line("{$label}: {$verb} the vendor for the {$request['label']} (\"{$request['task']->description}\").");
             }
 
             $hits = $service->evaluate($workOrder);
 
-            if ($hits->isEmpty()) {
+            // A vendor text is proof the run makes itself, so a work order with
+            // nothing to tick yet still runs when a text is due.
+            if ($hits->isEmpty() && ($dryRun || $due->isEmpty())) {
                 continue;
             }
 

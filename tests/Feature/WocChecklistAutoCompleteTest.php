@@ -764,6 +764,22 @@ class WocChecklistAutoCompleteTest extends TestCase
         $this->assertSame(0, Conversation::query()->withoutGlobalScopes()->count());
     }
 
+    public function test_the_sweep_command_texts_the_vendor_even_when_nothing_else_is_tickable_yet(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+
+        $this->artisan('tasks:auto-complete-triggers')
+            ->expectsOutputToContain('texting the vendor for the before and after photos')
+            ->expectsOutputToContain('1 task(s) ticked on 1 work order(s)')
+            ->assertSuccessful();
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertTicked($line, 'Vendor texted for the missing photos');
+    }
+
     public function test_the_live_date_migration_writes_once_and_keeps_the_original(): void
     {
         AppSetting::query()->where('key', 'vendor_photo_request.started_at')->delete();
