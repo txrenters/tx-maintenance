@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-14',
+            'area' => 'Work Orders',
+            'title' => 'The appointment text reaches every tenant on the lease',
+            'description' => 'When a Service Schedule is set, the appointment text used to go to the one tenant PropertyWare lists as Requested By, so a housemate who never saw the request still had a stranger at the door. It now goes to that tenant and to every other tenant on the lease, each greeted by their own first name, the same way the THMP visit reminders already reach the whole household. A number shared by two tenants is texted once, a tenant with no number on file is left out, and each text shows as its own entry in the work order\'s Tenant conversation and on the Automated Messages page. When the technician is chosen, their photo goes to everyone. Nothing else changed: the tenant text switch, the per-work-order mute, and the vacant, turnover and no-lease skips still apply to the whole household, a rescheduled date re-texts everyone once, and the "Text the tenant now?" question on the schedule form still decides whether anyone is texted at all.',
+        ],
+        [
             'date' => '2026-10-09',
             'area' => 'Work Orders',
             'title' => 'Vendor checklist tasks tick themselves',

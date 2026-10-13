@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\ServiceSchedule;
 use App\Models\Technician;
+use App\Models\Tenants;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -114,60 +115,102 @@ class TenantAppointmentNotificationService
             return;
         }
 
-        $tenant = $workOrder->requested_by;
-        $tenantNumber = $this->toE164($tenant?->mobile_phone ?: $tenant?->home_phone);
         $fromNumber = $this->fromNumber($workOrder);
-
         $technicianPhotos = $this->technicianPhotos($serviceSchedule);
+        $portalLink = $this->portalLinks->link($workOrder);
 
-        $message = TenantMessageFormatter::compose(
-            $this->message($serviceSchedule, $workOrder, count($technicianPhotos)),
-            $workOrder->work_order_no ?? $workOrder->id,
-            $this->portalLinks->link($workOrder),
-        );
+        // Everyone living there is told, not just the one who called it in:
+        // a housemate who never saw the request still has a stranger at the
+        // door otherwise (THMP, 10-14). With nobody reachable the thread
+        // still gets one entry addressed to the requester, so the
+        // coordinator can see the appointment went out.
+        $recipients = $this->recipients($workOrder)
+            ?: [['tenant' => $workOrder->requested_by, 'number' => null]];
 
-        // Log the update in the tenant thread even when there is nothing to
-        // text, so the coordinator can see the appointment went out.
-        $conversation = Conversation::create([
-            'message' => $message,
-            'sender_number' => $fromNumber ?: null,
-            'receiver_number' => $tenantNumber,
-            'work_order_id' => $workOrder->id,
-            'conversation_type' => 'tenant',
-            'is_read' => true,
-            'is_mms' => $technicianPhotos !== [],
-        ]);
+        foreach ($recipients as $recipient) {
+            $message = TenantMessageFormatter::compose(
+                $this->message($serviceSchedule, $workOrder, count($technicianPhotos), $recipient['tenant']),
+                $workOrder->work_order_no ?? $workOrder->id,
+                $portalLink,
+            );
 
-        // Attach each chosen technician's photo so the tenant recognizes who
-        // is coming. A media row reuses the roster file (no copy) and its
-        // signed URL is what Twilio fetches; the thread displays it too.
-        $mediaUrls = [];
+            $conversation = Conversation::create([
+                'message' => $message,
+                'sender_number' => $fromNumber ?: null,
+                'receiver_number' => $recipient['number'],
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'tenant',
+                'is_read' => true,
+                'is_mms' => $technicianPhotos !== [],
+            ]);
 
-        foreach ($technicianPhotos as $technicianPhoto) {
-            $mediaUrls[] = ConversationMedia::create([
-                'message_id' => $conversation->id,
-                'original_url' => '',
-                'local_path' => $technicianPhoto['path'],
-                'content_type' => $technicianPhoto['content_type'],
-                'file_name' => $technicianPhoto['file_name'],
-            ])->public_url;
+            // Attach each chosen technician's photo so the tenant recognizes
+            // who is coming. A media row reuses the roster file (no copy) and
+            // its signed URL is what Twilio fetches; the thread displays it too.
+            $mediaUrls = [];
+
+            foreach ($technicianPhotos as $technicianPhoto) {
+                $mediaUrls[] = ConversationMedia::create([
+                    'message_id' => $conversation->id,
+                    'original_url' => '',
+                    'local_path' => $technicianPhoto['path'],
+                    'content_type' => $technicianPhoto['content_type'],
+                    'file_name' => $technicianPhoto['file_name'],
+                ])->public_url;
+            }
+
+            if (blank($recipient['number']) || blank($fromNumber)) {
+                continue;
+            }
+
+            SendConversationMessageJob::dispatch($recipient['number'], $fromNumber, $message, $mediaUrls ?: null, $conversation->id);
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_SMS,
+                'tenant',
+                'tenant_appointment_sms',
+                $recipient['number'],
+                $workOrder,
+                $message,
+                ['service_schedule_id' => $serviceSchedule->id, 'conversation_id' => $conversation->id],
+            );
+        }
+    }
+
+    /**
+     * Who gets the appointment text: the Requested By contact first, then
+     * every other tenant on the lease roster (the work_order_tenants pivot
+     * the PropertyWare import fills from the active lease). Only tenants
+     * with a number are listed, and a number is texted once however many
+     * tenants share it. The requester stays even when they are not on the
+     * lease, exactly as before.
+     *
+     * @return list<array{tenant: Tenants, number: string}>
+     */
+    private function recipients(WorkOrder $workOrder): array
+    {
+        $workOrder->loadMissing('tenants');
+
+        $recipients = [];
+        $numbersSeen = [];
+
+        $tenants = collect([$workOrder->requested_by])
+            ->concat($workOrder->tenants)
+            ->filter(fn (mixed $tenant): bool => $tenant instanceof Tenants)
+            ->unique('id');
+
+        foreach ($tenants as $tenant) {
+            $number = $this->toE164($tenant->mobile_phone ?: $tenant->home_phone);
+
+            if (blank($number) || isset($numbersSeen[$number])) {
+                continue;
+            }
+
+            $numbersSeen[$number] = true;
+            $recipients[] = ['tenant' => $tenant, 'number' => $number];
         }
 
-        if (blank($tenantNumber) || blank($fromNumber)) {
-            return;
-        }
-
-        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, $mediaUrls ?: null, $conversation->id);
-
-        AutomatedMessageLogService::log(
-            AutomatedMessageLogService::CHANNEL_SMS,
-            'tenant',
-            'tenant_appointment_sms',
-            $tenantNumber,
-            $workOrder,
-            $message,
-            ['service_schedule_id' => $serviceSchedule->id, 'conversation_id' => $conversation->id],
-        );
+        return $recipients;
     }
 
     /**
@@ -184,9 +227,9 @@ class TenantAppointmentNotificationService
      * vendor appointment message goes out as it always has, minus the
      * be-home line when the vendor is THMP.
      */
-    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, int $photosAttached): string
+    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, int $photosAttached, ?Tenants $tenant): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $name = trim((string) ($tenant?->first_name ?? ''));
         $address = $workOrder->propertyAddress();
         $technicianNames = $serviceSchedule->technicians
             ->map(fn (Technician $technician): string => trim((string) $technician->name))

@@ -12,11 +12,13 @@ use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
 use App\Services\TenantAppointmentNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class TenantAppointmentNotificationTest extends TestCase
@@ -525,6 +527,172 @@ class TenantAppointmentNotificationTest extends TestCase
 
         // The coordinator still sees the update in the tenant thread.
         $this->assertSame(1, Conversation::query()->where('conversation_type', 'tenant')->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    /**
+     * A lease tenant on the work order's roster (the work_order_tenants pivot
+     * the PropertyWare import fills), reachable at the given number.
+     */
+    private function addLeaseTenant(ServiceSchedule $schedule, string $firstName, ?string $phone): Tenants
+    {
+        $tenant = Tenants::query()->create([
+            'first_name' => $firstName,
+            'last_name' => 'Tenant',
+            'email' => 't'.uniqid().'@example.com',
+            'mobile_phone' => $phone,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        $schedule->work_order->tenants()->attach($tenant->id);
+
+        return $tenant;
+    }
+
+    public function test_every_tenant_on_the_lease_is_texted_each_by_their_own_name(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $this->addLeaseTenant($schedule, 'Sam', '5125550001');
+        $this->addLeaseTenant($schedule, 'Alex', '5125550002');
+
+        $this->notify($schedule);
+
+        $messages = Conversation::query()
+            ->where('work_order_id', $schedule->work_order_id)
+            ->where('conversation_type', 'tenant')
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(3, $messages);
+        $this->assertSame(['+15125559999', '+15125550001', '+15125550002'], $messages->pluck('receiver_number')->all());
+        $this->assertStringContainsString('Hi Dana,', $messages[0]->message);
+        $this->assertStringContainsString('Hi Sam,', $messages[1]->message);
+        $this->assertStringContainsString('Hi Alex,', $messages[2]->message);
+
+        foreach ($messages as $message) {
+            $this->assertStringContainsString('Reliable Plumbing', $message->message);
+            $this->assertStringContainsString('(Ref: WO#43900)', $message->message);
+        }
+
+        Queue::assertPushed(SendConversationMessageJob::class, 3);
+        $this->assertSame(3, Activity::query()->where('log_name', AutomatedMessageLogService::LOG_NAME)->count());
+
+        // The once-per-schedule claim still holds for the whole roster.
+        $this->notify($schedule->fresh());
+        Queue::assertPushed(SendConversationMessageJob::class, 3);
+    }
+
+    public function test_a_requester_who_is_not_on_the_lease_is_texted_along_with_the_lease_tenants(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        // The requester is not attached to the roster; only Sam is.
+        $schedule = $this->makeSchedule();
+        $this->addLeaseTenant($schedule, 'Sam', '5125550001');
+
+        $this->notify($schedule);
+
+        $numbers = Conversation::query()->where('conversation_type', 'tenant')->orderBy('id')->pluck('receiver_number')->all();
+
+        $this->assertSame(['+15125559999', '+15125550001'], $numbers);
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+    }
+
+    public function test_a_lease_tenant_who_shares_the_requesters_number_is_texted_once(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $this->addLeaseTenant($schedule, 'Sam', '(512) 555-9999');
+
+        $this->notify($schedule);
+
+        $this->assertSame(1, Conversation::query()->where('conversation_type', 'tenant')->count());
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_a_lease_tenant_without_a_phone_is_left_out_while_the_others_are_texted(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $this->addLeaseTenant($schedule, 'Sam', null);
+        $this->addLeaseTenant($schedule, 'Alex', '5125550002');
+
+        $this->notify($schedule);
+
+        $numbers = Conversation::query()->where('conversation_type', 'tenant')->orderBy('id')->pluck('receiver_number')->all();
+
+        $this->assertSame(['+15125559999', '+15125550002'], $numbers);
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+    }
+
+    public function test_a_lease_tenant_is_texted_when_the_requester_has_no_phone(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule($this->makeTenant(phone: null));
+        $this->addLeaseTenant($schedule, 'Sam', '5125550001');
+
+        $this->notify($schedule);
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertSame('+15125550001', $message->receiver_number);
+        $this->assertStringContainsString('Hi Sam,', $message->message);
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_the_technician_photo_goes_to_every_tenant_on_the_lease(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+        Storage::fake();
+
+        $schedule = $this->makeSchedule(technician: $this->makeTechnician(withPhoto: true));
+        $this->addLeaseTenant($schedule, 'Sam', '5125550001');
+
+        $this->notify($schedule);
+
+        $messages = Conversation::query()->where('conversation_type', 'tenant')->orderBy('id')->get();
+
+        $this->assertCount(2, $messages);
+        $this->assertStringContainsString('Hi Dana!', $messages[0]->message);
+        $this->assertStringContainsString('Hi Sam!', $messages[1]->message);
+
+        foreach ($messages as $message) {
+            $this->assertTrue((bool) $message->is_mms);
+
+            $media = ConversationMedia::query()->where('message_id', $message->id)->firstOrFail();
+            $this->assertSame('technician-photos/kevin.jpg', $media->local_path);
+
+            Queue::assertPushed(SendConversationMessageJob::class, function (SendConversationMessageJob $job) use ($media): bool {
+                return $this->jobMediaUrl($job) === [$media->public_url];
+            });
+        }
+
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+    }
+
+    public function test_a_vacant_home_texts_nobody_on_the_old_lease(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $this->addLeaseTenant($schedule, 'Sam', '5125550001');
+        $schedule->work_order->update(['skip_automated_tasks' => true]);
+
+        $this->notify($schedule->fresh());
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
         Queue::assertNotPushed(SendConversationMessageJob::class);
     }
 }
