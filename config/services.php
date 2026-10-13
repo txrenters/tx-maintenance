@@ -421,6 +421,16 @@ return [
         // decides alone.
         'repair_judge' => env('REPAIR_COMPLETION_AI_JUDGE_ENABLED', true),
         'repair_min_confidence' => (int) env('REPAIR_COMPLETION_AI_MIN_CONFIDENCE', 80),
+
+        // Before the system ticks the coordinator's "Contact Tenant to Confirm
+        // Completion to Tenant Satisfaction" line, the AI reads the tenant's
+        // newest text since the task appeared: only a confident "it is fixed
+        // and I am happy" ticks it. The system never texts the tenant for
+        // this (Earl, 2026-10-14); no reply, a complaint, low confidence, no
+        // provider or an AI error all leave the task for a coordinator.
+        // Off = the line is never ticked by the system.
+        'tenant_completion_judge' => env('TENANT_COMPLETION_AI_JUDGE_ENABLED', true),
+        'tenant_completion_min_confidence' => (int) env('TENANT_COMPLETION_AI_MIN_CONFIDENCE', 80),
     ],
 
     'hvac_board' => [

@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Ai\Agents\RepairCompletionJudgeAgent;
+use App\Ai\Agents\TenantCompletionJudgeAgent;
 use App\Models\AiInsight;
 use App\Models\Attachments;
 use App\Models\Conversation;
+use App\Models\Invoice;
+use App\Models\JobberJobInvoice;
 use App\Models\JobberVisit;
 use App\Models\Scopes\AttachmentScope;
 use App\Models\Scopes\CalendarScope;
@@ -59,7 +62,21 @@ class TaskAutoCompleteService
 
     public const AFTER_PHOTO_ADDED = 'after_photo_added';
 
+    public const COST_CONFIRMED = 'cost_confirmed';
+
+    public const PHOTOS_ON_FILE_OR_VENDOR_ASKED = 'photos_on_file_or_vendor_asked';
+
+    public const TENANT_CONFIRMED_COMPLETION = 'tenant_confirmed_completion';
+
+    public const CHECKLIST_OTHERWISE_COMPLETE = 'checklist_otherwise_complete';
+
     public const LOG_NAME = 'task_automation';
+
+    /**
+     * How much of the tenant thread the completion judge reads before the
+     * newest reply, so a "yes" is read against the question it answers.
+     */
+    private const TENANT_THREAD_CONTEXT = 6;
 
     /**
      * Passes per run: each status move generates new tasks that may already
@@ -80,6 +97,10 @@ class TaskAutoCompleteService
         self::REPAIR_COMPLETED => 'Repair finished (Jobber done + tech note, or an after photo passing the AI check)',
         self::BEFORE_PHOTO_ADDED => 'A before photo is on the work order',
         self::AFTER_PHOTO_ADDED => 'An after photo is on the work order',
+        self::COST_CONFIRMED => 'An invoice for the work order is on file (uploaded, or synced from Jobber)',
+        self::PHOTOS_ON_FILE_OR_VENDOR_ASKED => 'Before and after photos are on file, or staff texted the vendor for them',
+        self::TENANT_CONFIRMED_COMPLETION => 'The tenant texted that the repair is done to their satisfaction (the AI reads the reply)',
+        self::CHECKLIST_OTHERWISE_COMPLETE => 'Every other task on this checklist is ticked (answers Yes)',
     ];
 
     /**
@@ -193,13 +214,29 @@ class TaskAutoCompleteService
                 fn (array $hit) => $this->completion->changesServiceStatus($hit['task'], $this->optionFor($hit['task']))
             );
 
+            $routineTicked = 0;
+
             foreach ($routine as $hit) {
-                $ticked += $this->tick($workOrder, $hit, false) ? 1 : 0;
+                $routineTicked += $this->tick($workOrder, $hit, false) ? 1 : 0;
             }
+
+            $ticked += $routineTicked;
 
             $first = $moving->first();
 
-            if ($first === null || ! $this->tick($workOrder, $first, true)) {
+            if ($first === null) {
+                // Nothing moved the status, but a line that only ticks may be
+                // the last one a "whole checklist done" line was waiting on:
+                // another pass reads the checklist again. Nothing ticked at
+                // all = nothing more will.
+                if ($routineTicked === 0) {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (! $this->tick($workOrder, $first, true)) {
                 break;
             }
 
@@ -295,8 +332,213 @@ class TaskAutoCompleteService
             self::REPAIR_COMPLETED => $this->repairCompleted($workOrder),
             self::BEFORE_PHOTO_ADDED => $this->beforePhoto($workOrder),
             self::AFTER_PHOTO_ADDED => $this->afterPhoto($workOrder),
+            self::COST_CONFIRMED => $this->costConfirmed($workOrder),
+            self::PHOTOS_ON_FILE_OR_VENDOR_ASKED => $this->photosOnFileOrVendorAsked($workOrder, $task),
+            self::TENANT_CONFIRMED_COMPLETION => $this->tenantConfirmedCompletion($workOrder, $task),
+            self::CHECKLIST_OTHERWISE_COMPLETE => $this->checklistOtherwiseComplete($workOrder, $task),
             default => null,
         };
+    }
+
+    /**
+     * The coordinator's "Confirm Cost of Service with Vendor": an invoice
+     * uploaded for the work order (the vendor portal or the Invoices page),
+     * else one the Jobber sync brought over with an amount on it. Archived
+     * invoices do not count. Scopes are lifted because the sweep runs as
+     * nobody and the schedule-save hook as whoever saved it.
+     */
+    private function costConfirmed(WorkOrder $workOrder): ?string
+    {
+        $invoice = Invoice::withoutGlobalScopes()
+            ->where('work_order_id', $workOrder->id)
+            ->whereNull('archived_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($invoice) {
+            return 'Invoice on file ($'.number_format((float) $invoice->amount, 2).', uploaded '.$this->day($invoice->created_at).')';
+        }
+
+        $jobs = $this->jobs->allForWorkOrder($workOrder);
+
+        if ($jobs->isEmpty()) {
+            return null;
+        }
+
+        $synced = JobberJobInvoice::withoutGlobalScopes()
+            ->whereIn('jobber_job_id', $jobs->pluck('id'))
+            ->whereNull('archived_at')
+            ->where('amount', '>', 0)
+            ->orderByDesc('id')
+            ->first();
+
+        return $synced
+            ? 'Jobber invoice on file ($'.number_format((float) $synced->amount, 2).', '.$this->day($synced->created_at).')'
+            : null;
+    }
+
+    /**
+     * "If Pictures Have not been uploaded contact vendor to upload": there is
+     * nothing to ask for once both photos are on the work order; otherwise a
+     * text staff sent the vendor after this task appeared is the contact the
+     * line asks for. The system never texts the vendor for this (Earl,
+     * 2026-10-14).
+     */
+    private function photosOnFileOrVendorAsked(WorkOrder $workOrder, WorkOrderTask $task): ?string
+    {
+        if ($this->beforePhoto($workOrder) !== null && $this->afterPhoto($workOrder) !== null) {
+            return 'Before and after photos are on the work order';
+        }
+
+        $sent = Conversation::withoutGlobalScopes()
+            ->where('work_order_id', $workOrder->id)
+            ->whereIn('conversation_type', ['vendor', 'vendor_tenant', 'vendor_owner'])
+            ->where('is_read', true)
+            ->where('created_at', '>=', $task->created_at)
+            ->orderByDesc('id')
+            ->first();
+
+        return $sent
+            ? 'Vendor texted by staff ('.$this->day($sent->created_at).')'
+            : null;
+    }
+
+    /**
+     * "Have All Items in Checklist been completed?": the Yes/No line at the
+     * end of a coordinator checklist whose Yes moves the work order on. It is
+     * answered Yes once every other line of the same template is ticked;
+     * never No. The sibling check reads the database as it is now, so a line
+     * ticked earlier in the same run counts on the next pass.
+     */
+    private function checklistOtherwiseComplete(WorkOrder $workOrder, WorkOrderTask $task): ?string
+    {
+        $templateId = $task->task?->task_template_id;
+
+        if ($templateId === null) {
+            return null;
+        }
+
+        $siblings = WorkOrderTask::withoutGlobalScope(TaskScope::class)
+            ->where('work_order_id', $workOrder->id)
+            ->whereKeyNot($task->id)
+            ->whereHas('task', fn ($template) => $template->where('task_template_id', $templateId))
+            ->get(['id', 'status']);
+
+        if ($siblings->isEmpty()) {
+            return null;
+        }
+
+        $pending = $siblings->where('status', '!=', 'completed')->count();
+
+        return $pending === 0
+            ? 'All '.$siblings->count().' other task(s) on this checklist are ticked'
+            : null;
+    }
+
+    /**
+     * "Contact Tenant to Confirm Completion to Tenant Satisfaction": the
+     * tenant's newest text since this task appeared, read by
+     * TenantCompletionJudgeAgent. Only a confident "done and satisfied"
+     * ticks; no reply, a complaint, doubt, no provider or an AI error hold
+     * the line for a coordinator. is_read false = the tenant wrote it.
+     */
+    private function tenantConfirmedCompletion(WorkOrder $workOrder, WorkOrderTask $task): ?string
+    {
+        if (! config('services.ai.tenant_completion_judge')) {
+            return null;
+        }
+
+        $reply = Conversation::withoutGlobalScopes()
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'tenant')
+            ->where('is_read', false)
+            ->where('created_at', '>=', $task->created_at)
+            ->whereNotNull('message')
+            ->where('message', '!=', '')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $reply) {
+            return null;
+        }
+
+        if (! AiSettings::ready()) {
+            Log::warning('Tenant completion tick held: no AI provider is configured to read the tenant reply.', [
+                'work_order_id' => $workOrder->id,
+            ]);
+
+            return null;
+        }
+
+        $key = sprintf('task-auto-complete:tenant-completion:%d:%d', $workOrder->id, $reply->id);
+
+        $verdict = Cache::remember($key, now()->addDay(), fn () => $this->askTenantCompletionJudge($workOrder, $reply));
+
+        if ($verdict['satisfied']) {
+            return "Tenant replied the repair is done ({$verdict['confidence']}%): {$verdict['reason']}";
+        }
+
+        Log::info('Tenant completion tick held: the tenant reply does not say the repair is done.', [
+            'work_order_id' => $workOrder->id,
+            'work_order_no' => $workOrder->work_order_no,
+            'conversation_id' => $reply->id,
+            'verdict' => $verdict,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @return array{satisfied: bool, confidence: int, reason: string}
+     */
+    private function askTenantCompletionJudge(WorkOrder $workOrder, Conversation $reply): array
+    {
+        $thread = Conversation::withoutGlobalScopes()
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'tenant')
+            ->where('id', '<', $reply->id)
+            ->orderByDesc('id')
+            ->limit(self::TENANT_THREAD_CONTEXT)
+            ->get(['id', 'message', 'is_read'])
+            ->reverse()
+            ->values();
+
+        $excerpt = fn (?string $message, int $limit = 240): string => Str::limit(trim((string) preg_replace('/\s+/', ' ', (string) $message)), $limit);
+
+        $lines = [
+            'WORK ORDER #'.$workOrder->work_order_no,
+            'Description: '.Str::limit(trim((string) $workOrder->description), 800),
+            'Category: '.($workOrder->category ?: 'n/a'),
+            '',
+            'TENANT THREAD (oldest first; "us" = the property manager, "them" = the tenant):',
+        ];
+
+        foreach ($thread as $earlier) {
+            $lines[] = sprintf('    %s: "%s"', $earlier->is_read ? 'us' : 'them', $excerpt($earlier->message));
+        }
+
+        $lines[] = sprintf('    them (NEWEST, judge this): "%s"', $excerpt($reply->message, 600));
+
+        try {
+            $response = (new TenantCompletionJudgeAgent)->prompt(implode("\n", $lines), timeout: 30);
+        } catch (Throwable $exception) {
+            Log::warning('Tenant completion judge failed; the tick is held.', [
+                'work_order_id' => $workOrder->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            // Not cached: the next sweep asks again.
+            throw $exception;
+        }
+
+        $confidence = max(0, min(100, (int) data_get($response, 'confidence', 0)));
+        $minimum = (int) config('services.ai.tenant_completion_min_confidence', 80);
+
+        return [
+            'satisfied' => (bool) data_get($response, 'satisfied', false) && $confidence >= $minimum,
+            'confidence' => $confidence,
+            'reason' => Str::limit(trim((string) data_get($response, 'reason', '')), 160),
+        ];
     }
 
     /**

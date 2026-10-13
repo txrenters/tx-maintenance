@@ -27,7 +27,7 @@ class AutoCompleteTriggeredTasks extends Command
         {--work-order= : One work order id, instead of every open one}
         {--limit=500 : How many work orders to check in a run}';
 
-    protected $description = 'Tick checklist tasks whose proof is in (schedule saved, tenant texted, repair finished, before/after photos); a tick does what the task template says it does.';
+    protected $description = 'Tick checklist tasks whose proof is in (schedule saved, tenant texted, repair finished, before/after photos, invoice on file, tenant reply read as satisfied, every other line ticked); a tick does what the task template says it does.';
 
     public function handle(TaskAutoCompleteService $service): int
     {
