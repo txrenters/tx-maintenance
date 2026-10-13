@@ -42,13 +42,19 @@ class AutoCompleteTriggeredTasks extends Command
         $workOrders = 0;
 
         foreach ($this->candidates() as $workOrder) {
+            $label = '#'.($workOrder->work_order_no ?? $workOrder->id);
+
+            if ($dryRun) {
+                foreach ($service->duePhotoRequests($workOrder) as $due) {
+                    $this->line("{$label}: would text the vendor for the {$due['label']} (\"{$due['task']->description}\").");
+                }
+            }
+
             $hits = $service->evaluate($workOrder);
 
             if ($hits->isEmpty()) {
                 continue;
             }
-
-            $label = '#'.($workOrder->work_order_no ?? $workOrder->id);
 
             foreach ($hits as $hit) {
                 $verb = $dryRun ? 'would tick' : 'ticked';

@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\TenantCompletionJudgeAgent;
+use App\Jobs\SendConversationMessageJob;
+use App\Models\AppSetting;
 use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\Invoice;
@@ -22,6 +24,7 @@ use App\Services\PropertyWareService;
 use App\Services\TaskAutoCompleteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
@@ -53,6 +56,9 @@ class WocChecklistAutoCompleteTest extends TestCase
 
         config([
             'services.tasks.auto_complete_enabled' => true,
+            'services.tasks.vendor_photo_request_sms' => true,
+            'services.tasks.vendor_photo_request_delay_hours' => 24,
+            'services.twilio.maintenance_number' => '+12813787957',
             'services.ai.tenant_completion_judge' => true,
             'services.ai.tenant_completion_min_confidence' => 80,
             'ai.providers.openai.key' => 'test-key',
@@ -600,6 +606,180 @@ class WocChecklistAutoCompleteTest extends TestCase
 
         $this->assertSame(0, $this->tick($workOrder));
         $this->assertSame('pending', $line->fresh()->status);
+    }
+
+    // --- the vendor photo-request text -------------------------------------
+
+    /** The feature went live three days ago; the line appeared a day and an hour ago. */
+    private function photoRequestDue(WorkOrder $workOrder, string $phone = '(346) 412-2380'): WorkOrderTask
+    {
+        AppSetting::putValue('vendor_photo_request.started_at', ['started_at' => now()->subDays(3)->toIso8601String()]);
+        $workOrder->vendors()->first()->user->forceFill(['phone' => $phone])->save();
+
+        $line = $this->photoContactLine($workOrder);
+        $line->forceFill(['created_at' => now()->subHours(25)])->save();
+
+        return $line;
+    }
+
+    public function test_missing_photos_a_day_later_text_the_vendor_once_with_their_portal_link_and_tick_the_line(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+
+        $this->assertSame(1, $this->tick($workOrder));
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertTicked($line, 'Vendor texted for the missing photos');
+
+        $text = Conversation::query()->withoutGlobalScopes()->where('work_order_id', $workOrder->id)->where('conversation_type', 'vendor')->firstOrFail();
+        $this->assertTrue((bool) $text->is_read);
+        $this->assertSame('+13464122380', $text->receiver_number);
+        $this->assertStringContainsString('before and after photos have not been uploaded', $text->message);
+        $this->assertStringContainsString('/vendor-portal/', $text->message);
+
+        $ledger = Activity::query()->where('log_name', 'automated_message')->where('event', 'vendor_photo_request_sms')->firstOrFail();
+        $this->assertSame($workOrder->id, (int) $ledger->properties['work_order_id']);
+        $this->assertSame('before and after photos', $ledger->properties['missing']);
+
+        // Nothing goes out twice.
+        $this->assertSame(0, $this->tick($workOrder));
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_only_the_after_photo_missing_names_just_the_after_photos(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $this->photoRequestDue($workOrder);
+        $this->attachment($workOrder, 'before');
+
+        $this->tick($workOrder);
+
+        $text = Conversation::query()->withoutGlobalScopes()->where('conversation_type', 'vendor')->firstOrFail();
+        $this->assertStringContainsString('the after photos have not been uploaded', $text->message);
+    }
+
+    public function test_a_line_that_appeared_before_the_text_went_live_is_never_texted_about(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+        AppSetting::putValue('vendor_photo_request.started_at', ['started_at' => now()->subHours(2)->toIso8601String()]);
+
+        $this->assertSame(0, $this->tick($workOrder));
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+        $this->assertSame(0, Conversation::query()->withoutGlobalScopes()->count());
+    }
+
+    public function test_no_live_date_recorded_means_no_text(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+        AppSetting::query()->where('key', 'vendor_photo_request.started_at')->delete();
+
+        $this->tick($workOrder);
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+    }
+
+    public function test_a_line_younger_than_the_wait_is_not_texted_about_yet(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+        $line->forceFill(['created_at' => now()->subHours(23)])->save();
+
+        $this->tick($workOrder);
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+    }
+
+    public function test_the_photo_text_switch_off_leaves_the_line_for_the_coordinator(): void
+    {
+        Queue::fake();
+        config(['services.tasks.vendor_photo_request_sms' => false]);
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+
+        $this->tick($workOrder);
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+    }
+
+    public function test_a_thmp_work_order_is_not_texted_the_crew_uploads_through_jobber(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+        $this->jobberJob($workOrder);
+
+        $this->tick($workOrder);
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+    }
+
+    public function test_a_vendor_without_a_phone_number_is_not_texted(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder, '');
+
+        $this->tick($workOrder);
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+        $this->assertSame(0, Activity::query()->where('log_name', 'automated_message')->count());
+    }
+
+    public function test_a_dry_run_says_it_would_text_the_vendor_and_sends_nothing(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->workOrder();
+        $line = $this->photoRequestDue($workOrder);
+
+        $this->artisan('tasks:auto-complete-triggers', ['--dry-run' => true, '--work-order' => $workOrder->id])
+            ->expectsOutputToContain('would text the vendor for the before and after photos')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+        $this->assertUntouched($line);
+        $this->assertSame(0, Conversation::query()->withoutGlobalScopes()->count());
+    }
+
+    public function test_the_live_date_migration_writes_once_and_keeps_the_original(): void
+    {
+        AppSetting::query()->where('key', 'vendor_photo_request.started_at')->delete();
+
+        $migration = require database_path('migrations/2026_10_14_090200_record_vendor_photo_request_start.php');
+
+        $migration->up();
+        $first = AppSetting::getValue('vendor_photo_request.started_at');
+        $this->assertNotEmpty($first['started_at']);
+
+        $this->travel(2)->hours();
+        $migration->up();
+        $this->assertSame($first, AppSetting::getValue('vendor_photo_request.started_at'));
+
+        $migration->down();
+        $this->assertNull(AppSetting::getValue('vendor_photo_request.started_at'));
     }
 
     // --- the seed migration -------------------------------------------------

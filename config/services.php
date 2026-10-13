@@ -455,6 +455,17 @@ return [
         // THMP and portal vendors alike. phpunit.xml pins it false; tests turn
         // it on.
         'auto_complete_enabled' => (bool) env('TASK_AUTO_COMPLETE_ENABLED', true),
+
+        // The coordinator's "If Pictures Have not been uploaded contact
+        // vendor to upload" line: when the photos are still missing this
+        // many hours after the line appeared, the sweep texts the vendor
+        // once (their portal link included) and ticks the line. Only lines
+        // that appeared after the feature went live are texted about
+        // (app_settings vendor_photo_request.started_at); the backlog stays
+        // with the coordinator (Earl, 2026-10-14: "it should not be
+        // backfilled"). Off = the line waits for the photos or a staff text.
+        'vendor_photo_request_sms' => (bool) env('VENDOR_PHOTO_REQUEST_SMS_ENABLED', true),
+        'vendor_photo_request_delay_hours' => (int) env('VENDOR_PHOTO_REQUEST_DELAY_HOURS', 24),
     ],
 
 ];

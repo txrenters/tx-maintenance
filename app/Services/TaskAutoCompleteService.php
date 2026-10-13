@@ -113,6 +113,7 @@ class TaskAutoCompleteService
     public function __construct(
         private JobberJobLocator $jobs,
         private TaskCompletionService $completion,
+        private VendorPhotoRequestService $photoRequests,
     ) {}
 
     /**
@@ -195,6 +196,15 @@ class TaskAutoCompleteService
     public function run(WorkOrder $workOrder): int
     {
         $ticked = 0;
+
+        // The one line whose proof the system makes itself: the vendor is
+        // texted for the missing photos (once, after the wait, never for a
+        // line older than the feature), and the text is then the proof the
+        // first pass finds. Sending lives here, never in evaluate(), so a
+        // dry run sends nothing.
+        foreach ($this->duePhotoRequests($workOrder) as $due) {
+            $this->photoRequests->send($workOrder, $due['task'], $due['missing']);
+        }
 
         for ($pass = 1; $pass <= self::MAX_PASSES; $pass++) {
             if ($pass > 1) {
@@ -378,18 +388,82 @@ class TaskAutoCompleteService
     }
 
     /**
+     * The "contact vendor to upload" lines whose photos are still missing
+     * and whose vendor is due a text right now: what run() will send and
+     * what --dry-run prints. Empty when the text is off, the line predates
+     * the feature (no backfill), it is too fresh, the vendor was already
+     * texted, THMP is on the job, or no vendor has a number.
+     *
+     * @return Collection<int, array{task: WorkOrderTask, missing: list<string>, label: string}>
+     */
+    public function duePhotoRequests(WorkOrder $workOrder): Collection
+    {
+        $this->memo = [];
+
+        if (! self::isEnabled() || ! self::inScope($workOrder)) {
+            return new Collection;
+        }
+
+        $due = new Collection;
+
+        foreach ($this->candidates($workOrder) as $task) {
+            if ((string) $task->task->auto_complete_trigger !== self::PHOTOS_ON_FILE_OR_VENDOR_ASKED) {
+                continue;
+            }
+
+            $missing = $this->missingPhotos($workOrder);
+
+            if ($missing === [] || $this->staffTextedVendor($workOrder, $task) !== null) {
+                continue;
+            }
+
+            if ($this->photoRequests->holdReason($workOrder, $task, $missing) === null) {
+                $due->push(['task' => $task, 'missing' => $missing, 'label' => $this->photoRequests->missingLabel($missing)]);
+            }
+        }
+
+        return $due;
+    }
+
+    /**
+     * @return list<string> the photo types not yet on the work order
+     */
+    private function missingPhotos(WorkOrder $workOrder): array
+    {
+        return array_values(array_filter([
+            $this->beforePhoto($workOrder) === null ? 'before' : null,
+            $this->afterPhoto($workOrder) === null ? 'after' : null,
+        ]));
+    }
+
+    /**
      * "If Pictures Have not been uploaded contact vendor to upload": there is
-     * nothing to ask for once both photos are on the work order; otherwise a
-     * text staff sent the vendor after this task appeared is the contact the
-     * line asks for. The system never texts the vendor for this (Earl,
-     * 2026-10-14).
+     * nothing to ask for once both photos are on the work order; otherwise
+     * the contact the line asks for is the system's own photo-request text
+     * (VendorPhotoRequestService, sent by run()) or a text staff sent the
+     * vendor after this task appeared.
      */
     private function photosOnFileOrVendorAsked(WorkOrder $workOrder, WorkOrderTask $task): ?string
     {
-        if ($this->beforePhoto($workOrder) !== null && $this->afterPhoto($workOrder) !== null) {
+        if ($this->missingPhotos($workOrder) === []) {
             return 'Before and after photos are on the work order';
         }
 
+        $sentAt = $this->photoRequests->sentAt($workOrder);
+
+        if ($sentAt !== null && $task->created_at !== null && $sentAt->gte($task->created_at)) {
+            return 'Vendor texted for the missing photos ('.$this->day($sentAt).')';
+        }
+
+        return $this->staffTextedVendor($workOrder, $task);
+    }
+
+    /**
+     * A text staff sent the vendor after this task appeared, as the stored
+     * sentence, or null.
+     */
+    private function staffTextedVendor(WorkOrder $workOrder, WorkOrderTask $task): ?string
+    {
         $sent = Conversation::withoutGlobalScopes()
             ->where('work_order_id', $workOrder->id)
             ->whereIn('conversation_type', ['vendor', 'vendor_tenant', 'vendor_owner'])

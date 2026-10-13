@@ -154,6 +154,26 @@ class AutomatedMessageTemplates
                 ."Once the time is set with the tenant, please log it under the Service Schedule tab on your dashboard and mark the completed tasks so the work order can move to Scheduled.\n"
                 ."Thank you for keeping this moving - please update us when it's done.",
         ],
+        'vendor_photo_request_sms' => [
+            'automation' => 'vendor_photo_request_sms',
+            'label' => 'Photo request',
+            'group' => null,
+            'channel' => 'sms',
+            'audience' => 'vendor',
+            'sends_when' => 'Texted to the vendor once, when the work order has reached Service Completed and the before/after photos are still missing after the configured wait. Their portal link is added automatically below this text; {missing} is "before and after photos", "before photos" or "after photos".',
+            'tokens' => [
+                'missing' => 'Which photos are still missing on the work order.',
+            ],
+            'required' => ['missing'],
+            'sample' => [
+                'missing' => 'before and after photos',
+            ],
+            'collapse' => false,
+            'default' => "Hello,\n"
+                ."The service on this work order is marked complete, but the {missing} have not been uploaded yet.\n"
+                ."Please upload them under the Photos tab on your dashboard so we can verify the work and process your invoice.\n"
+                .'Thank you.',
+        ],
         'tenant_service_request_sms' => [
             'automation' => 'tenant_service_request_sms',
             'label' => 'Request received',

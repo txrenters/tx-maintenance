@@ -57,6 +57,7 @@ class AutomatedMessageLogService
         'tenant_hoa_violation_confirmation_email' => 'Tenant: HOA violation corrected',
         'owner_hoa_violation_confirmation_email' => 'Owner: HOA violation corrected',
         'vendor_schedule_follow_up_sms' => 'Vendor: schedule follow-up',
+        'vendor_photo_request_sms' => 'Vendor: before/after photo request',
         'tenant_vendor_contact_follow_up_sms' => 'Tenant: vendor contact follow-up',
         'owner_schedule_follow_up_sms' => 'Owner: schedule follow-up',
         'owner_approval_nudge_email' => 'Owner: approval reminder',
