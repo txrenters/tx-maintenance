@@ -138,6 +138,7 @@ class ListTbpRemindedVisits extends Command
             'recipient' => 'Recipient',
             'last_sent_at' => 'Last reminder',
             'visit_now' => 'Visit now',
+            'reached' => 'Reached',
             'delivery' => 'Delivery',
             'replied' => 'Replied',
             'reply_at' => 'Reply at',
@@ -389,6 +390,7 @@ class ListTbpRemindedVisits extends Command
                 'recipient' => (string) $first['recipient'],
                 'last_sent_at' => $lastSentAt->copy()->timezone(self::TIMEZONE)->format('Y-m-d H:i'),
                 'visit_now' => $this->describeVisitNow($group, $visits, $visitDate),
+                'reached' => $first['channel'] === 'sms' ? $this->describeReached($group, $sentMessages) : 'n/a (email)',
                 'delivery' => $first['channel'] === 'sms' ? $this->describeDelivery($group, $sentMessages) : 'n/a (email)',
                 'replied' => $reply !== null ? 'yes' : ($first['channel'] === 'email' ? 'n/a (email)' : 'no'),
                 'reply_at' => $reply?->created_at?->copy()->timezone(self::TIMEZONE)->format('Y-m-d H:i') ?? '',
@@ -422,6 +424,33 @@ class ListTbpRemindedVisits extends Command
         }
 
         return 'moved to '.$currentDate;
+    }
+
+    /**
+     * The office's rule for the follow-up text: one delivered reminder is
+     * enough to say the tenant knows ("yes"); only when every text to the
+     * number failed is it "no". Texts Twilio never reported on leave it
+     * "unknown".
+     *
+     * @param  Collection<int, array<string, mixed>>  $group
+     * @param  Collection<int, JobberTextMessage>  $sentMessages
+     */
+    protected function describeReached(Collection $group, Collection $sentMessages): string
+    {
+        $statuses = $group
+            ->map(fn (array $send): ?JobberTextMessage => $sentMessages->get($send['message_id'] ?? 0))
+            ->filter()
+            ->map(fn (JobberTextMessage $message): string => strtolower(trim((string) ($message->twilio_status ?: $message->status ?: ''))));
+
+        if ($statuses->contains('delivered')) {
+            return 'yes';
+        }
+
+        if ($statuses->isNotEmpty() && $statuses->every(fn (string $status): bool => in_array($status, ['undelivered', 'failed', 'canceled'], true))) {
+            return 'no';
+        }
+
+        return 'unknown';
     }
 
     /**

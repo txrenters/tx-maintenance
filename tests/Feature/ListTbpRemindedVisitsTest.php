@@ -258,7 +258,7 @@ class ListTbpRemindedVisitsTest extends TestCase
         $lines = array_values(array_filter(explode("\n", trim($csv))));
 
         $this->assertCount(3, $lines);
-        $this->assertSame('"Job #","Job title","Jobber client",Property,"Visit date",Reminders,Channel,Recipient,"Last reminder","Visit now",Delivery,Replied,"Reply at",Reply', $lines[0]);
+        $this->assertSame('"Job #","Job title","Jobber client",Property,"Visit date",Reminders,Channel,Recipient,"Last reminder","Visit now",Reached,Delivery,Replied,"Reply at",Reply', $lines[0]);
         $this->assertStringContainsString('+15550000001', $lines[1]);
         $this->assertStringContainsString('+15550000002', $lines[2]);
     }
@@ -297,7 +297,7 @@ class ListTbpRemindedVisitsTest extends TestCase
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',2026-10-22,manual,sms,'.self::TENANT.',"2026-10-14 15:00",scheduled,"delivered, 1/1 delivered",no,', $csv);
+        $this->assertStringContainsString(',2026-10-22,manual,sms,'.self::TENANT.',"2026-10-14 15:00",scheduled,yes,"delivered, 1/1 delivered",no,', $csv);
     }
 
     public function test_a_rescheduled_visit_shows_the_new_date(): void
@@ -336,7 +336,7 @@ class ListTbpRemindedVisitsTest extends TestCase
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',2026-10-22,7,email,jane@example.com,"2026-10-15 10:00",scheduled,"n/a (email)","n/a (email)",,', $csv);
+        $this->assertStringContainsString(',2026-10-22,7,email,jane@example.com,"2026-10-15 10:00",scheduled,"n/a (email)","n/a (email)","n/a (email)",,', $csv);
     }
 
     public function test_an_undelivered_reminder_is_flagged_with_the_carrier_error(): void
@@ -348,7 +348,7 @@ class ListTbpRemindedVisitsTest extends TestCase
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',scheduled,"undelivered, 1/2 delivered (30003 Unreachable destination handset)",no,,', $csv);
+        $this->assertStringContainsString(',scheduled,yes,"undelivered, 1/2 delivered (30003 Unreachable destination handset)",no,,', $csv);
     }
 
     public function test_a_text_twilio_never_reported_on_shows_no_receipt(): void
@@ -359,7 +359,19 @@ class ListTbpRemindedVisitsTest extends TestCase
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',scheduled,"queued (no receipt), 0/1 delivered",no,,', $csv);
+        $this->assertStringContainsString(',scheduled,unknown,"queued (no receipt), 0/1 delivered",no,,', $csv);
+    }
+
+    public function test_a_number_every_reminder_bounced_on_is_not_reached(): void
+    {
+        $job = $this->makeJob();
+        $visit = $this->makeVisit($job, '2026-10-22');
+        $this->remind($job, $visit, '2026-10-22', '2026-10-08 10:00:00', self::TENANT, 'failed', '21211', 'Invalid number');
+        $this->remind($job, $visit, '2026-10-22', '2026-10-15 10:00:00', self::TENANT, 'undelivered', '30003', 'Unreachable destination handset');
+
+        $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
+
+        $this->assertStringContainsString(',scheduled,no,"undelivered, 0/2 delivered (21211 Invalid number)",no,,', $csv);
     }
 
     public function test_rejects_a_malformed_date(): void
