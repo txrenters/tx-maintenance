@@ -8,10 +8,16 @@ use App\Models\JobberProperty;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
+use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Mockery;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
+use Twilio\Rest\Api\V2010\Account\MessageInstance;
+use Twilio\Version;
 
 /**
  * The tbp:reminded-visits report: which tenants were told about an upcoming
@@ -372,6 +378,175 @@ class ListTbpRemindedVisitsTest extends TestCase
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
         $this->assertStringContainsString(',scheduled,no,"undelivered, 0/2 delivered (21211 Invalid number)",no,,', $csv);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | --send: the "visit pulled, will reschedule" text
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Three properties: one reached, one every reminder bounced on, one
+     * Twilio never reported on. Returns [reached job, bounced job, unknown job].
+     *
+     * @return array{0: Jobber, 1: Jobber, 2: Jobber}
+     */
+    private function sendFixture(): array
+    {
+        $reached = $this->makeJob('100 Reached Ln', '20001', 'reached');
+        $this->remind($reached, $this->makeVisit($reached, '2026-10-21', 'reached'), '2026-10-21', '2026-10-07 10:00:00', '+15550000001', 'delivered');
+        $this->remind($reached, $this->makeVisit($reached, '2026-10-28', 'reached2'), '2026-10-28', '2026-10-14 10:00:00', '+15550000001', 'undelivered', '30019', 'Content size exceeds carrier limit');
+
+        $bounced = $this->makeJob('200 Bounced Dr', '20002', 'bounced');
+        $this->remind($bounced, $this->makeVisit($bounced, '2026-10-21', 'bounced'), '2026-10-21', '2026-10-07 10:00:00', '+15550000002', 'undelivered', '30005', 'Unknown destination handset');
+
+        $unknown = $this->makeJob('300 Unknown Ct', '20003', 'unknown');
+        $this->remind($unknown, $this->makeVisit($unknown, '2026-10-21', 'unknown'), '2026-10-21', '2026-10-07 10:00:00', '+15550000003', 'sent');
+
+        return [$reached, $bounced, $unknown];
+    }
+
+    /**
+     * What TwilioService::sendMessage hands back: the SDK's message resource,
+     * which must be the real class (the method's return type) with the
+     * payload Twilio would have answered with.
+     */
+    private function twilioMessage(string $sid): MessageInstance
+    {
+        return new MessageInstance(Mockery::mock(Version::class), ['sid' => $sid, 'status' => 'queued'], 'ACtest');
+    }
+
+    private function fakeTwilio(array $expectedNumbers): void
+    {
+        $mock = $this->mock(TwilioService::class);
+
+        foreach ($expectedNumbers as $number) {
+            $mock->shouldReceive('sendMessage')
+                ->once()
+                ->withArgs(fn (string $to, string $from, string $body): bool => $to === $number
+                    && $from === self::THMP
+                    && str_starts_with($body, 'Good day!')
+                    && str_contains($body, 'removed from our schedule'))
+                ->andReturn($this->twilioMessage('SM'.substr($number, -4)));
+        }
+
+        if ($expectedNumbers === []) {
+            $mock->shouldNotReceive('sendMessage');
+        }
+    }
+
+    public function test_dry_run_lists_the_reached_numbers_and_sends_nothing(): void
+    {
+        $this->sendFixture();
+        $this->fakeTwilio([]);
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true, '--dry-run' => true])
+            ->expectsOutputToContain('DRY RUN: would text 1 number(s); skipping 2 never reached.')
+            ->expectsOutputToContain('would text: 2026-10-21 | job 20001 | 100 Reached Ln | +15550000001')
+            ->assertSuccessful();
+
+        $this->assertSame(0, JobberTextMessage::query()->where('messages', 'like', 'Good day!%')->count());
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_tbp_visit_cancelled_sms')->count());
+    }
+
+    public function test_send_texts_each_reached_number_once_and_logs_it(): void
+    {
+        [$reached] = $this->sendFixture();
+        $this->fakeTwilio(['+15550000001']);
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])
+            ->expectsOutputToContain('Texting 1 number(s); skipping 2 never reached.')
+            ->expectsOutputToContain('sent: 2026-10-21 | job 20001 | 100 Reached Ln | +15550000001')
+            ->expectsOutputToContain('Done: 1 sent, 0 failed, 0 already texted.')
+            ->assertSuccessful();
+
+        $text = JobberTextMessage::query()->where('messages', 'like', 'Good day!%')->sole();
+        $this->assertSame('+15550000001', $text->receiver_number);
+        $this->assertSame(self::THMP, $text->sender_number);
+        $this->assertSame($reached->id, (int) $text->jobber_id);
+        $this->assertNull($text->jobber_visit_id);
+        $this->assertSame('SM0001', $text->twilio_sid);
+        $this->assertSame(AutomatedMessageTemplates::raw('tenant_tbp_visit_cancelled'), $text->messages);
+
+        $ledger = Activity::query()->where('event', 'tenant_tbp_visit_cancelled_sms')->sole();
+        $this->assertSame('+15550000001', $ledger->properties['recipient']);
+        $this->assertSame('20001', $ledger->properties['job_number']);
+        $this->assertSame($text->id, (int) $ledger->properties['jobber_text_message_id']);
+    }
+
+    public function test_a_second_send_run_does_not_text_the_same_number_again(): void
+    {
+        $this->sendFixture();
+        $this->fakeTwilio(['+15550000001']);
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])->assertSuccessful();
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])
+            ->expectsOutputToContain('already texted: 2026-10-21 | job 20001 | 100 Reached Ln | +15550000001')
+            ->expectsOutputToContain('Done: 0 sent, 0 failed, 1 already texted.')
+            ->assertSuccessful();
+
+        $this->assertSame(1, JobberTextMessage::query()->where('messages', 'like', 'Good day!%')->count());
+    }
+
+    public function test_include_unknown_also_texts_the_numbers_twilio_never_reported_on(): void
+    {
+        $this->sendFixture();
+        $this->fakeTwilio(['+15550000001', '+15550000003']);
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true, '--include-unknown' => true])
+            ->expectsOutputToContain('Texting 2 number(s); skipping 1 never reached.')
+            ->expectsOutputToContain('Done: 2 sent, 0 failed, 0 already texted.')
+            ->assertSuccessful();
+
+        $this->assertSame(2, JobberTextMessage::query()->where('messages', 'like', 'Good day!%')->count());
+    }
+
+    public function test_a_twilio_failure_is_recorded_and_does_not_stop_the_run(): void
+    {
+        $first = $this->makeJob('100 First Ln', '20001', 'first');
+        $this->remind($first, $this->makeVisit($first, '2026-10-21', 'first'), '2026-10-21', '2026-10-07 10:00:00', '+15550000001', 'delivered');
+        $second = $this->makeJob('200 Second Dr', '20002', 'second');
+        $this->remind($second, $this->makeVisit($second, '2026-10-21', 'second'), '2026-10-21', '2026-10-07 10:00:00', '+15550000002', 'delivered');
+
+        $mock = $this->mock(TwilioService::class);
+        $mock->shouldReceive('sendMessage')->once()->withArgs(fn (string $to): bool => $to === '+15550000001')->andThrow(new \RuntimeException('Twilio down'));
+        $mock->shouldReceive('sendMessage')->once()->withArgs(fn (string $to): bool => $to === '+15550000002')->andReturn($this->twilioMessage('SM2'));
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])
+            ->expectsOutputToContain('FAILED: 2026-10-21 | job 20001 | 100 First Ln | +15550000001 - Twilio down')
+            ->expectsOutputToContain('Done: 1 sent, 1 failed, 0 already texted.')
+            ->assertSuccessful();
+
+        $failed = JobberTextMessage::query()->where('receiver_number', '+15550000001')->where('messages', 'like', 'Good day!%')->sole();
+        $this->assertSame('failed', $failed->twilio_status);
+        $this->assertSame('Twilio down', $failed->twilio_error_message);
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_tbp_visit_cancelled_sms')->where('properties->recipient', '+15550000001')->count());
+    }
+
+    public function test_send_uses_the_wording_saved_on_the_automated_messages_page(): void
+    {
+        $this->sendFixture();
+        AutomatedMessageTemplates::put('tenant_tbp_visit_cancelled', 'Good day! Custom wording, visit removed from our schedule.');
+
+        $mock = $this->mock(TwilioService::class);
+        $mock->shouldReceive('sendMessage')->once()
+            ->withArgs(fn (string $to, string $from, string $body): bool => $body === 'Good day! Custom wording, visit removed from our schedule.')
+            ->andReturn($this->twilioMessage('SM1'));
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])->assertSuccessful();
+    }
+
+    public function test_send_refuses_without_a_thmp_number(): void
+    {
+        $this->sendFixture();
+        config(['services.twilio.from' => null]);
+        $this->mock(TwilioService::class)->shouldNotReceive('sendMessage');
+
+        $this->artisan('tbp:reminded-visits', ['--from' => '2026-10-19', '--to' => '2026-10-30', '--send' => true])
+            ->expectsOutputToContain('No THMP Twilio number configured')
+            ->assertFailed();
     }
 
     public function test_rejects_a_malformed_date(): void

@@ -830,6 +830,23 @@ class AutomatedMessageTemplates
                 ."Warm regards,\n"
                 .'TexasRenters, LLC',
         ],
+        'tenant_tbp_visit_cancelled' => [
+            'automation' => 'tenant_tbp_visit_cancelled_sms',
+            'label' => 'Visit pulled, will reschedule',
+            'group' => null,
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted only when staff run tbp:reminded-visits --send after Tenant Benefit Package visits were taken off the schedule: it goes to the tenants whose reminder text was delivered, once per number. Never sent on a schedule.',
+            'tokens' => [],
+            'required' => [],
+            'sample' => [],
+            'collapse' => false,
+            'default' => "Good day!\n\n"
+                ."We'd like to inform you that due to recent system adjustments, your previously scheduled Tenant Benefit Package visit has been removed from our schedule, so we will need to reschedule it.\n\n"
+                ."We apologize for any inconvenience. We will notify you as soon as the new date has been finalized.\n\n"
+                ."Thank you for your patience and understanding!\n\n"
+                .'TexasRenters, LLC',
+        ],
         'vendor_jobber_assignment_sms' => [
             'automation' => 'vendor_jobber_assignment_sms',
             'label' => 'Job assigned',

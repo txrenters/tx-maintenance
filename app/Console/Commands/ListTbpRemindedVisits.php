@@ -7,9 +7,12 @@ use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Models\TwilioPhoneNumber;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
+use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
@@ -43,13 +46,18 @@ class ListTbpRemindedVisits extends Command
      */
     protected const MESSAGE_ID_PROPERTY = 'jobber_text_message_id';
 
+    protected const CANCELLATION_TEMPLATE = 'tenant_tbp_visit_cancelled';
+
     protected const DATE_PATTERN = '/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Z][a-z]+\s+\d{1,2},\s+\d{4})/';
 
     protected $signature = 'tbp:reminded-visits
                             {--from= : First visit date to include (Y-m-d, America/Chicago); defaults to today}
                             {--to= : Last visit date to include (Y-m-d)}
                             {--replies-only : Only tenants who texted back after the reminder}
-                            {--csv= : Write the rows as CSV to this path (storage/app relative), or - for standard output}';
+                            {--csv= : Write the rows as CSV to this path (storage/app relative), or - for standard output}
+                            {--send : Text the "visit pulled" notice to every tenant whose reminder was delivered (Reached = yes), once per number}
+                            {--include-unknown : With --send, also text the numbers Twilio never reported on (Reached = unknown)}
+                            {--dry-run : With --send, list who would be texted without sending}';
 
     protected $description = 'List the tenants that received a TBP visit reminder for upcoming visits, with any reply';
 
@@ -88,6 +96,10 @@ class ListTbpRemindedVisits extends Command
             fn (array $a, array $b): int => strcmp($a['job_number'], $b['job_number']),
             fn (array $a, array $b): int => strcmp($a['recipient'], $b['recipient']),
         ])->values();
+
+        if ($this->option('send')) {
+            return $this->sendCancellationNotice($rows, (bool) $this->option('include-unknown'), (bool) $this->option('dry-run'));
+        }
 
         $csvPath = $this->option('csv');
 
@@ -424,6 +436,147 @@ class ListTbpRemindedVisits extends Command
         }
 
         return 'moved to '.$currentDate;
+    }
+
+    /**
+     * Text the "visit pulled, will reschedule" notice to the tenants the
+     * reminders reached. One text per phone number however many visits it
+     * was reminded about, never twice: a number that already has this
+     * notice on file (same body, last 14 days) is skipped, so a re-run
+     * after a crash only sends what the first run missed.
+     *
+     * @param  Collection<int, array<string, string|int>>  $rows
+     */
+    protected function sendCancellationNotice(Collection $rows, bool $includeUnknown, bool $dryRun): int
+    {
+        $body = AutomatedMessageTemplates::raw(self::CANCELLATION_TEMPLATE);
+        $from = (string) config('services.twilio.from');
+
+        if (trim($body) === '') {
+            $this->error('The '.self::CANCELLATION_TEMPLATE.' template is empty; nothing sent.');
+
+            return self::FAILURE;
+        }
+
+        if (! $dryRun && $from === '') {
+            $this->error('No THMP Twilio number configured (services.twilio.from); nothing sent.');
+
+            return self::FAILURE;
+        }
+
+        $accepted = $includeUnknown ? ['yes', 'unknown'] : ['yes'];
+
+        $smsRows = $rows->filter(fn (array $row): bool => $row['channel'] === 'sms');
+
+        $targets = $smsRows
+            ->filter(fn (array $row): bool => in_array($row['reached'], $accepted, true))
+            ->unique(fn (array $row): string => $this->digitsKey((string) $row['recipient']))
+            ->values();
+
+        $targetKeys = $targets->map(fn (array $row): string => $this->digitsKey((string) $row['recipient']))->flip();
+
+        $skipped = $smsRows
+            ->filter(fn (array $row): bool => ! $targetKeys->has($this->digitsKey((string) $row['recipient'])))
+            ->unique(fn (array $row): string => $this->digitsKey((string) $row['recipient']))
+            ->count();
+
+        $this->info(($dryRun ? 'DRY RUN: would text ' : 'Texting ').$targets->count().' number(s); skipping '.$skipped.' never reached.');
+        $this->line('Message: '.Str::limit(str_replace("\n", ' ', $body), 90));
+
+        if ($targets->isEmpty()) {
+            return self::SUCCESS;
+        }
+
+        $alreadyTexted = JobberTextMessage::query()
+            ->where('messages', $body)
+            ->where('created_at', '>=', now()->subDays(14))
+            ->pluck('receiver_number')
+            ->map(fn ($number): string => $this->digitsKey((string) $number))
+            ->flip();
+
+        $twilio = $dryRun ? null : app(TwilioService::class);
+        $hasVisitColumn = JobberTextMessage::hasVisitColumn();
+        $sent = 0;
+        $failed = 0;
+        $duplicates = 0;
+
+        foreach ($targets as $row) {
+            $to = (string) $row['recipient'];
+            $label = sprintf('%s | job %s | %s | %s', $row['visit_date'], $row['job_number'], $row['client'], $to);
+
+            if ($alreadyTexted->has($this->digitsKey($to))) {
+                $this->line('  already texted: '.$label);
+                $duplicates++;
+
+                continue;
+            }
+
+            if ($dryRun) {
+                $this->line('  would text: '.$label);
+
+                continue;
+            }
+
+            $payload = [
+                'messages' => $body,
+                'sender_number' => $from,
+                'receiver_number' => $to,
+                'jobber_id' => (int) $row['job_id'],
+            ];
+
+            if ($hasVisitColumn) {
+                $payload['jobber_visit_id'] = null;
+            }
+
+            try {
+                $twilioMessage = $twilio->sendMessage($to, $from, $body);
+
+                $text = JobberTextMessage::create($payload + [
+                    'status' => $twilioMessage->status ?? 'queued',
+                    'sent_at' => now(),
+                    'twilio_sid' => $twilioMessage->sid ?? null,
+                    'twilio_status' => $twilioMessage->status ?? 'queued',
+                    'twilio_status_updated_at' => now(),
+                ]);
+
+                AutomatedMessageLogService::log(
+                    AutomatedMessageLogService::CHANNEL_SMS,
+                    'tenant',
+                    'tenant_tbp_visit_cancelled_sms',
+                    $to,
+                    Jobber::query()->find((int) $row['job_id']),
+                    $body,
+                    [
+                        'jobber_id' => (int) $row['job_id'],
+                        'job_number' => $row['job_number'],
+                        'visit_date' => $row['visit_date'],
+                        self::MESSAGE_ID_PROPERTY => $text->id,
+                    ],
+                );
+
+                $this->line('  sent: '.$label);
+                $sent++;
+            } catch (\Throwable $exception) {
+                JobberTextMessage::create($payload + [
+                    'status' => 'failed',
+                    'sent_at' => now(),
+                    'error_message' => $exception->getMessage(),
+                    'twilio_status' => 'failed',
+                    'twilio_status_updated_at' => now(),
+                    'twilio_error_message' => $exception->getMessage(),
+                ]);
+
+                Log::error('TBP visit cancellation text failed', ['to' => $to, 'job_id' => $row['job_id'], 'error' => $exception->getMessage()]);
+                $this->warn('  FAILED: '.$label.' - '.$exception->getMessage());
+                $failed++;
+            }
+        }
+
+        if (! $dryRun) {
+            $this->info(sprintf('Done: %d sent, %d failed, %d already texted.', $sent, $failed, $duplicates));
+        }
+
+        return self::SUCCESS;
     }
 
     /**
