@@ -138,6 +138,7 @@ class ListTbpRemindedVisits extends Command
             'recipient' => 'Recipient',
             'last_sent_at' => 'Last reminder',
             'visit_now' => 'Visit now',
+            'delivery' => 'Delivery',
             'replied' => 'Replied',
             'reply_at' => 'Reply at',
             'reply' => 'Reply',
@@ -223,6 +224,7 @@ class ListTbpRemindedVisits extends Command
 
             return [
                 'source' => 'ledger',
+                'message_id' => (int) ($properties[self::MESSAGE_ID_PROPERTY] ?? 0),
                 'job_id' => (int) ($properties['jobber_id'] ?? $activity->subject_id ?? 0),
                 'job_number' => (string) ($properties['job_number'] ?? ''),
                 'visit_id' => isset($properties['jobber_visit_id']) ? (int) $properties['jobber_visit_id'] : null,
@@ -270,6 +272,7 @@ class ListTbpRemindedVisits extends Command
             ->filter(fn (JobberTextMessage $message): bool => in_array($this->digitsKey((string) $message->sender_number), $ourNumbers, true))
             ->map(fn (JobberTextMessage $message): array => [
                 'source' => 'manual',
+                'message_id' => (int) $message->id,
                 'job_id' => (int) $message->jobber_id,
                 'job_number' => '',
                 'visit_id' => $hasVisitColumn && $message->jobber_visit_id !== null ? (int) $message->jobber_visit_id : null,
@@ -325,13 +328,18 @@ class ListTbpRemindedVisits extends Command
             ->get()
             ->keyBy('id');
 
+        $sentMessages = JobberTextMessage::query()
+            ->whereIn('id', $sends->pluck('message_id')->filter()->unique()->values())
+            ->get()
+            ->keyBy('id');
+
         $messagesByJob = JobberTextMessage::query()
             ->whereIn('jobber_id', $jobs->keys())
             ->orderBy('id')
             ->get()
             ->groupBy('jobber_id');
 
-        return $groups->map(function (Collection $group) use ($jobs, $visits, $messagesByJob): array {
+        return $groups->map(function (Collection $group) use ($jobs, $visits, $messagesByJob, $sentMessages): array {
             $first = $group->first();
             $job = $jobs->get($first['job_id']);
             $visitDate = $first['visit_date'];
@@ -381,6 +389,7 @@ class ListTbpRemindedVisits extends Command
                 'recipient' => (string) $first['recipient'],
                 'last_sent_at' => $lastSentAt->copy()->timezone(self::TIMEZONE)->format('Y-m-d H:i'),
                 'visit_now' => $this->describeVisitNow($group, $visits, $visitDate),
+                'delivery' => $first['channel'] === 'sms' ? $this->describeDelivery($group, $sentMessages) : 'n/a (email)',
                 'replied' => $reply !== null ? 'yes' : ($first['channel'] === 'email' ? 'n/a (email)' : 'no'),
                 'reply_at' => $reply?->created_at?->copy()->timezone(self::TIMEZONE)->format('Y-m-d H:i') ?? '',
                 'reply' => $reply !== null ? Str::limit(trim((string) preg_replace('/\s+/', ' ', (string) $reply->messages)), 120) : '',
@@ -413,6 +422,57 @@ class ListTbpRemindedVisits extends Command
         }
 
         return 'moved to '.$currentDate;
+    }
+
+    /**
+     * Did the reminder texts reach the number: Twilio's final status for the
+     * latest text, plus how many of the group's texts were delivered and the
+     * carrier error when one was not. "no receipt" means Twilio never
+     * reported back (status still queued/sent), so delivery is unknown.
+     *
+     * @param  Collection<int, array<string, mixed>>  $group
+     * @param  Collection<int, JobberTextMessage>  $sentMessages
+     */
+    protected function describeDelivery(Collection $group, Collection $sentMessages): string
+    {
+        $messages = $group
+            ->sortBy('sent_at')
+            ->map(fn (array $send): ?JobberTextMessage => $sentMessages->get($send['message_id'] ?? 0))
+            ->filter()
+            ->values();
+
+        if ($messages->isEmpty()) {
+            return 'unknown (no message row)';
+        }
+
+        $statusOf = static fn (JobberTextMessage $message): string => strtolower(trim((string) ($message->twilio_status ?: $message->status ?: '')));
+        $bad = ['undelivered', 'failed', 'canceled'];
+
+        $delivered = $messages->filter(fn (JobberTextMessage $message): bool => $statusOf($message) === 'delivered')->count();
+        $failed = $messages->filter(fn (JobberTextMessage $message): bool => in_array($statusOf($message), $bad, true));
+
+        $latest = $messages->last();
+        $latestStatus = $statusOf($latest);
+
+        $label = match (true) {
+            $latestStatus === 'delivered' => 'delivered',
+            in_array($latestStatus, $bad, true) => $latestStatus,
+            $latestStatus === '' => 'unknown',
+            default => $latestStatus.' (no receipt)',
+        };
+
+        $summary = sprintf('%s, %d/%d delivered', $label, $delivered, $messages->count());
+
+        $error = $failed
+            ->map(fn (JobberTextMessage $message): string => trim(implode(' ', array_filter([
+                (string) ($message->twilio_error_code ?? ''),
+                (string) ($message->twilio_error_message ?: $message->error_message ?: ''),
+            ]))))
+            ->filter()
+            ->unique()
+            ->first();
+
+        return $error ? $summary.' ('.Str::limit($error, 60).')' : $summary;
     }
 
     /**

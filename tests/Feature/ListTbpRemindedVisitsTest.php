@@ -84,7 +84,7 @@ class ListTbpRemindedVisitsTest extends TestCase
      * What SendJobReminders writes for one SMS recipient: the message row and
      * the ledger entry that points at it.
      */
-    private function remind(Jobber $job, ?JobberVisit $visit, string $visitDate, string $sentAt, string $phone = self::TENANT): JobberTextMessage
+    private function remind(Jobber $job, ?JobberVisit $visit, string $visitDate, string $sentAt, string $phone = self::TENANT, string $twilioStatus = 'delivered', ?string $errorCode = null, ?string $errorMessage = null): JobberTextMessage
     {
         Carbon::setTestNow(Carbon::parse($sentAt, 'America/Chicago'));
 
@@ -97,6 +97,10 @@ class ListTbpRemindedVisitsTest extends TestCase
             'receiver_number' => $phone,
             'jobber_id' => $job->id,
             'jobber_visit_id' => $visit?->id,
+            'status' => 'queued',
+            'twilio_status' => $twilioStatus,
+            'twilio_error_code' => $errorCode,
+            'twilio_error_message' => $errorMessage,
         ]);
 
         AutomatedMessageLogService::log(
@@ -254,7 +258,7 @@ class ListTbpRemindedVisitsTest extends TestCase
         $lines = array_values(array_filter(explode("\n", trim($csv))));
 
         $this->assertCount(3, $lines);
-        $this->assertSame('"Job #","Job title","Jobber client",Property,"Visit date",Reminders,Channel,Recipient,"Last reminder","Visit now",Replied,"Reply at",Reply', $lines[0]);
+        $this->assertSame('"Job #","Job title","Jobber client",Property,"Visit date",Reminders,Channel,Recipient,"Last reminder","Visit now",Delivery,Replied,"Reply at",Reply', $lines[0]);
         $this->assertStringContainsString('+15550000001', $lines[1]);
         $this->assertStringContainsString('+15550000002', $lines[2]);
     }
@@ -287,12 +291,13 @@ class ListTbpRemindedVisitsTest extends TestCase
             'receiver_number' => self::TENANT,
             'jobber_id' => $job->id,
             'jobber_visit_id' => $visit->id,
+            'twilio_status' => 'delivered',
         ]);
         Carbon::setTestNow();
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',2026-10-22,manual,sms,'.self::TENANT.',"2026-10-14 15:00",scheduled,no,', $csv);
+        $this->assertStringContainsString(',2026-10-22,manual,sms,'.self::TENANT.',"2026-10-14 15:00",scheduled,"delivered, 1/1 delivered",no,', $csv);
     }
 
     public function test_a_rescheduled_visit_shows_the_new_date(): void
@@ -331,7 +336,30 @@ class ListTbpRemindedVisitsTest extends TestCase
 
         $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
 
-        $this->assertStringContainsString(',2026-10-22,7,email,jane@example.com,"2026-10-15 10:00",scheduled,"n/a (email)",,', $csv);
+        $this->assertStringContainsString(',2026-10-22,7,email,jane@example.com,"2026-10-15 10:00",scheduled,"n/a (email)","n/a (email)",,', $csv);
+    }
+
+    public function test_an_undelivered_reminder_is_flagged_with_the_carrier_error(): void
+    {
+        $job = $this->makeJob();
+        $visit = $this->makeVisit($job, '2026-10-22');
+        $this->remind($job, $visit, '2026-10-22', '2026-10-08 10:00:00', self::TENANT, 'delivered');
+        $this->remind($job, $visit, '2026-10-22', '2026-10-15 10:00:00', self::TENANT, 'undelivered', '30003', 'Unreachable destination handset');
+
+        $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
+
+        $this->assertStringContainsString(',scheduled,"undelivered, 1/2 delivered (30003 Unreachable destination handset)",no,,', $csv);
+    }
+
+    public function test_a_text_twilio_never_reported_on_shows_no_receipt(): void
+    {
+        $job = $this->makeJob();
+        $visit = $this->makeVisit($job, '2026-10-22');
+        $this->remind($job, $visit, '2026-10-22', '2026-10-15 10:00:00', self::TENANT, 'queued');
+
+        $csv = $this->csv(['--from' => '2026-10-15', '--csv' => '-']);
+
+        $this->assertStringContainsString(',scheduled,"queued (no receipt), 0/1 delivered",no,,', $csv);
     }
 
     public function test_rejects_a_malformed_date(): void
