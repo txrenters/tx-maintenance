@@ -26,7 +26,16 @@ class VendorNotesController extends Controller
         ]);
 
         $user = User::with('vendor')->find(auth()->id());
-        $vendorId = $user->vendor->id;
+
+        // A vendor login edits its own row. A THMP crew member working from a
+        // staff login (no vendor row of their own) edits THMP's.
+        $vendor = $user->vendor ?? ($user->isThmpCrewLogin() ? Vendor::thmp() : null);
+
+        if ($vendor === null) {
+            return redirect()->back()->withErrors(['vendor' => 'This login is not linked to a vendor, so it cannot save an estimate.']);
+        }
+
+        $vendorId = $vendor->id;
 
         try {
             $workOrder = DB::transaction(function () use ($validatedData, $vendorId): WorkOrder {
@@ -47,7 +56,7 @@ class VendorNotesController extends Controller
             // PropertyWare and the service status is the coordinator's to move.
             $this->ringEstimateBell(
                 $workOrder,
-                $user->vendor,
+                $vendor,
                 (float) $validatedData['cost_estimate'],
                 $validatedData['time_estimate'] ?? null,
             );

@@ -97,6 +97,17 @@ class Vendor extends Model
     }
 
     /**
+     * THMP's own vendor row: the one carrying its PropertyWare id, else the
+     * first named after it. Used when a THMP crew member works from a staff
+     * login that owns no vendor row of its own (the estimate calculator).
+     */
+    public static function thmp(): ?self
+    {
+        return self::query()->where('propertyware_id', self::THMP_PROPERTYWARE_ID)->first()
+            ?? self::query()->whereRaw('LOWER(TRIM(name)) = ?', [Str::lower(self::THMP_NAME)])->orderBy('id')->first();
+    }
+
+    /**
      * True when THMP is among the vendors assigned to the given work order.
      * Matches the same trimmed, case-insensitive rule as isThmp() so a vendor
      * record with stray whitespace or different casing is still detected.

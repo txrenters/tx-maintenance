@@ -475,6 +475,11 @@ return [
     'vendor_estimate' => [
         'labor_rate' => (float) env('VENDOR_ESTIMATE_LABOR_RATE', 85),
         'material_tax_rate' => (float) env('VENDOR_ESTIMATE_MATERIAL_TAX_RATE', 0.0825),
+        // Staff-type logins the THMP crew works from, by email, which get
+        // the calculator even though they own no vendor row (Earl, 2026-10-20:
+        // "xservice@txhomemp.com ... include this"). THMP's own vendor
+        // login needs no listing.
+        'logins' => env('VENDOR_ESTIMATE_CALCULATOR_LOGINS', 'xservice@txhomemp.com,service@txhomemp.com'),
     ],
 
 ];

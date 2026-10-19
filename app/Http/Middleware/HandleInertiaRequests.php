@@ -58,9 +58,11 @@ class HandleInertiaRequests extends Middleware
             // Add vendor-specific data if user has vendor role
             if ($request->user()->hasRole('vendor')) {
                 $userData['vendor'] = $request->user()->vendor ?? null;
-                // The estimate calculator on the Vendor Edit tab is THMP's only.
-                $userData['vendor_is_thmp'] = (bool) $request->user()->vendor?->isThmp();
             }
+
+            // The estimate calculator on the Vendor Edit tab is THMP's only:
+            // its vendor login, or a listed staff login the crew works from.
+            $userData['vendor_is_thmp'] = $request->user()->isThmpCrewLogin();
 
             if ($request->user()->hasRole('woc')) {
                 $userData['woc'] = $request->user()->wocNumber->twilioPhoneNumber ?? null;

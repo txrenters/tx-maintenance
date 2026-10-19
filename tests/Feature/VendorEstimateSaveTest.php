@@ -181,4 +181,102 @@ class VendorEstimateSaveTest extends TestCase
                 ->where('vendorEstimateRates', null)
             );
     }
+
+    /**
+     * A coordinator login the THMP crew works from, with no vendor row of its
+     * own: listed by email, it gets the calculator too (Earl, 2026-10-20).
+     */
+    private function makeListedStaffUser(string $email = 'xservice@txhomemp.com'): User
+    {
+        Role::findOrCreate('woc', 'web');
+
+        $user = User::factory()->create(['email' => $email]);
+        $user->assignRole('woc');
+
+        return $user;
+    }
+
+    public function test_a_listed_staff_login_is_offered_the_calculator(): void
+    {
+        $user = $this->makeListedStaffUser();
+        $workOrder = $this->makeWorkOrder();
+
+        $this->actingAs($user)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('auth.user.vendor_is_thmp', true)
+                ->where('vendorEstimateRates.labor_rate', 85)
+            );
+    }
+
+    public function test_the_listed_logins_come_from_config(): void
+    {
+        config(['services.vendor_estimate.logins' => 'crew@example.test, Other@Example.test']);
+
+        $listed = $this->makeListedStaffUser('other@example.test');
+        $unlisted = $this->makeListedStaffUser('xservice@txhomemp.com');
+        $workOrder = $this->makeWorkOrder();
+
+        $this->actingAs($listed)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertInertia(fn (Assert $page) => $page->where('auth.user.vendor_is_thmp', true));
+
+        $this->actingAs($unlisted)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertInertia(fn (Assert $page) => $page->where('auth.user.vendor_is_thmp', false));
+    }
+
+    public function test_a_plain_coordinator_is_not_offered_the_calculator(): void
+    {
+        $user = $this->makeListedStaffUser('someone@texasrenters.com');
+        $workOrder = $this->makeWorkOrder();
+
+        $this->actingAs($user)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('auth.user.vendor_is_thmp', false)
+                ->where('vendorEstimateRates', null)
+            );
+    }
+
+    public function test_a_listed_staff_login_saves_the_estimate_on_thmps_vendor_row(): void
+    {
+        $user = $this->makeListedStaffUser();
+        [, $thmp] = $this->makeVendorUser(Vendor::THMP_NAME, Vendor::THMP_PROPERTYWARE_ID);
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($thmp->id, ['access_token' => 'tok-thmp']);
+
+        $this->actingAs($user)->post(route('api.vendor_work_order_details.update'), [
+            'cost_estimate' => 365.75,
+            'time_estimate' => 3,
+            'scheduled_end_date' => '2026-10-22',
+            'work_order_id' => $workOrder->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('work_order_vendors', [
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $thmp->id,
+            'cost_estimate' => 365.75,
+            'time_estimate' => 3,
+        ]);
+
+        $this->assertSame('Texas Home Maintenance Pros estimated $365.75 (3 hrs).', Activity::query()
+            ->where('event', 'vendor_estimate_submitted')
+            ->latest('id')
+            ->value('properties')['message']);
+    }
+
+    public function test_a_staff_login_without_a_vendor_cannot_save_an_estimate(): void
+    {
+        $user = $this->makeListedStaffUser('someone@texasrenters.com');
+        $workOrder = $this->makeWorkOrder();
+
+        $this->actingAs($user)->post(route('api.vendor_work_order_details.update'), [
+            'cost_estimate' => 100,
+            'work_order_id' => $workOrder->id,
+        ])->assertRedirect()->assertSessionHasErrors('vendor');
+
+        $this->assertDatabaseMissing('activity_log', ['event' => 'vendor_estimate_submitted']);
+    }
 }

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
@@ -106,6 +107,26 @@ class User extends Authenticatable
     public function vendor(): HasOne
     {
         return $this->hasOne(Vendor::class, 'user_id');
+    }
+
+    /**
+     * Whether this login is the Texas Home Maintenance Pros crew: THMP's own
+     * vendor login, or one of the staff-type logins the crew works from,
+     * listed by email in services.vendor_estimate.logins (Earl's
+     * xservice@txhomemp.com is a coordinator login with no vendor row, so no
+     * vendor rule can recognise it). Gates the estimate calculator.
+     */
+    public function isThmpCrewLogin(): bool
+    {
+        if ($this->hasRole('vendor') && $this->vendor?->isThmp()) {
+            return true;
+        }
+
+        $email = Str::lower(trim((string) $this->email));
+
+        return $email !== '' && collect(explode(',', (string) config('services.vendor_estimate.logins', '')))
+            ->map(fn (string $login): string => Str::lower(trim($login)))
+            ->contains($email);
     }
 
     public function vendors(): HasMany

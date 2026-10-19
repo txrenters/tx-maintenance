@@ -137,13 +137,18 @@ const handleFetchVendor = () => {
     emit("fetch-vendor");
 };
 
-// The estimate calculator is THMP's only (Earl, 2026-10-20). Its total goes
-// into the Update Work Order Details form, which the vendor then submits
-// with the date as before.
+// The estimate calculator is THMP's only (Earl, 2026-10-20): its vendor
+// login, or a listed staff login the crew works from (the server decides).
+// Its total goes into the Update Work Order Details form, which is then
+// submitted with the date as before.
 const isThmpVendor = computed(
+    () => page.props.auth.user?.vendor_is_thmp === true
+);
+// The Update form itself: vendor logins as always, plus the THMP crew logins.
+const canEditEstimate = computed(
     () =>
-        (page.props.auth.user?.roles ?? []).includes("vendor") &&
-        page.props.auth.user?.vendor_is_thmp === true
+        (page.props.auth.user?.roles ?? []).includes("vendor") ||
+        isThmpVendor.value
 );
 const calculatorOpen = ref(false);
 
@@ -235,10 +240,7 @@ const applyCalculatedTotal = ({ cost, hours }) => {
                     Vendor Estimates
                 </p>
             </div>
-            <div
-                class="flex gap-2"
-                v-if="$page.props.auth.user.roles.includes('vendor')"
-            >
+            <div class="flex gap-2" v-if="canEditEstimate">
                 <Button
                     v-if="isThmpVendor"
                     :disabled="isLoading"
