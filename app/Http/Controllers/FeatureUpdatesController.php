@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-20',
+            'area' => 'Work Orders',
+            'title' => 'THMP gets an estimate calculator on the Vendor Edit tab',
+            'description' => 'When the Texas Home Maintenance Pros login opens a work order, the Vendor Edit tab now has a Calculator button beside the Vendor Estimates edit button. It opens a small calculator: labor hours, material cost before tax, and a "Trip / maintenance fee" tick with the amount when one applies. The breakdown and total show as the crew types, with labor at $85 an hour and materials with 8.25% sales tax added. "Use this total" opens the Update Work Order Details form with the total in Cost Estimate and the hours in Time Estimate (rounded up to the next whole hour, since Time is whole hours); the crew adds the date and submits as before. Other vendors do not see the button. The hourly rate and the tax rate are settings, so a change needs no release. Every submitted estimate now also rings the assigned coordinator\'s notification bell with the vendor\'s name and the figure, for example "Texas Home Maintenance Pros estimated $365.75 (3 hrs)". Nothing is sent to PropertyWare and the status is left for the coordinator to move. Also fixed: that form\'s save was never committed to the database, so an estimate typed there could vanish after the page refreshed.',
+        ],
+        [
             'date' => '2026-10-14',
             'area' => 'Work Orders',
             'title' => 'The coordinator\'s Service Completed checklist ticks itself',

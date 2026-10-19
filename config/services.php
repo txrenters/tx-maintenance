@@ -468,4 +468,13 @@ return [
         'vendor_photo_request_delay_hours' => (int) env('VENDOR_PHOTO_REQUEST_DELAY_HOURS', 24),
     ],
 
+    // The THMP estimate calculator on the Vendor Edit tab: labor hours at
+    // this hourly rate plus materials with sales tax, so the crew never does
+    // the arithmetic by hand. Figures from the maintenance team's proposal
+    // (2026-10-19): $85/hour and 8.25% tax.
+    'vendor_estimate' => [
+        'labor_rate' => (float) env('VENDOR_ESTIMATE_LABOR_RATE', 85),
+        'material_tax_rate' => (float) env('VENDOR_ESTIMATE_MATERIAL_TAX_RATE', 0.0825),
+    ],
+
 ];

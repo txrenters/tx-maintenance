@@ -58,6 +58,8 @@ class HandleInertiaRequests extends Middleware
             // Add vendor-specific data if user has vendor role
             if ($request->user()->hasRole('vendor')) {
                 $userData['vendor'] = $request->user()->vendor ?? null;
+                // The estimate calculator on the Vendor Edit tab is THMP's only.
+                $userData['vendor_is_thmp'] = (bool) $request->user()->vendor?->isThmp();
             }
 
             if ($request->user()->hasRole('woc')) {
@@ -67,6 +69,12 @@ class HandleInertiaRequests extends Middleware
 
         return array_merge($sharedData, [
             'auth.user' => $userData,
+            // Calculator rates for the THMP login, read from config so a rate
+            // change is a setting, not a release.
+            'vendorEstimateRates' => ($userData['vendor_is_thmp'] ?? false) ? [
+                'labor_rate' => (float) config('services.vendor_estimate.labor_rate', 85),
+                'material_tax_rate' => (float) config('services.vendor_estimate.material_tax_rate', 0.0825),
+            ] : null,
             'twilio_phone_number' => $twilio_phone_number,
             'maintenance_twilio_phone_number' => $maintenance_twilio_phone_number,
             'jobber_twilio_phone_number' => $jobber_twilio_phone_number,

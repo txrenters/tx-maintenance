@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useForm, usePage } from "@inertiajs/vue3";
 import {
     Plus,
@@ -9,7 +9,9 @@ import {
     Mail,
     MailX,
     ExternalLink,
+    Calculator,
 } from "lucide-vue-next";
+import EstimateCalculatorDialog from "@/Components/EstimateCalculatorDialog.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 
@@ -134,6 +136,24 @@ const handleFormSubmit = () => {
 const handleFetchVendor = () => {
     emit("fetch-vendor");
 };
+
+// The estimate calculator is THMP's only (Earl, 2026-10-20). Its total goes
+// into the Update Work Order Details form, which the vendor then submits
+// with the date as before.
+const isThmpVendor = computed(
+    () =>
+        (page.props.auth.user?.roles ?? []).includes("vendor") &&
+        page.props.auth.user?.vendor_is_thmp === true
+);
+const calculatorOpen = ref(false);
+
+const applyCalculatedTotal = ({ cost, hours }) => {
+    vendorForms.cost_estimate = cost;
+    if (hours !== null && hours !== undefined) {
+        vendorForms.time_estimate = hours;
+    }
+    openModal.value = true;
+};
 </script>
 
 <template>
@@ -219,6 +239,16 @@ const handleFetchVendor = () => {
                 class="flex gap-2"
                 v-if="$page.props.auth.user.roles.includes('vendor')"
             >
+                <Button
+                    v-if="isThmpVendor"
+                    :disabled="isLoading"
+                    variant="outline"
+                    data-testid="open-estimate-calculator"
+                    @click="calculatorOpen = true"
+                >
+                    <Calculator class="w-4 h-4" />
+                    Calculator
+                </Button>
                 <Button
                     :disabled="isLoading"
                     size="icon"
@@ -320,4 +350,10 @@ const handleFetchVendor = () => {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+    <EstimateCalculatorDialog
+        v-if="isThmpVendor"
+        v-model:open="calculatorOpen"
+        :rates="$page.props.vendorEstimateRates"
+        @use-total="applyCalculatedTotal"
+    />
 </template>
