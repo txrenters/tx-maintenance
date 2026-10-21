@@ -3,13 +3,14 @@
 namespace App\Jobs;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\Fpdi;
 
-class GenerateW9PdfJob implements ShouldQueue
+class GenerateW9PdfJob implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable;
 

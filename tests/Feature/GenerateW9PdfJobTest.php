@@ -69,6 +69,17 @@ class GenerateW9PdfJobTest extends TestCase
         $this->assertFileDoesNotExist($this->storageRoot.'/app/temp_signature.png');
     }
 
+    public function test_queued_payload_does_not_expose_the_ssn(): void
+    {
+        $job = new GenerateW9PdfJob($this->signature(), $this->formData(), ['id' => self::BUILDING_ID], []);
+        $queue = app('queue')->connection('sync');
+
+        $payload = (fn (): array => $this->createObjectPayload($job, 'default'))->call($queue);
+
+        $this->assertStringNotContainsString('123456789', $payload['data']['command']);
+        $this->assertStringContainsString('123456789', decrypt($payload['data']['command'], false));
+    }
+
     private function signature(): string
     {
         $image = imagecreatetruecolor(40, 10);
