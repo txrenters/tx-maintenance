@@ -44,6 +44,12 @@ class GenerateW9PdfJob implements ShouldQueue
      */
     public function handle(): void
     {
+        // Each W-9 gets its own temp files outside storage/app: that folder is not
+        // always writable by the queue worker, and a shared filename let two owners
+        // submitting at once overwrite each other's signature.
+        $signaturePath = tempnam(sys_get_temp_dir(), 'w9_signature_');
+        $storagePath = tempnam(sys_get_temp_dir(), 'w9_pdf_');
+
         try {
             // Path to your base W9 template
             $templatePath = public_path('w9_form.pdf');
@@ -83,7 +89,7 @@ class GenerateW9PdfJob implements ShouldQueue
                 $pdf->Write(5, '4');
             }
 
-            if ($this->formData['w9_tax_class1']) {
+            if (! empty($this->formData['w9_tax_class1'])) {
                 $pdf->SetXY(155, 91); // 3b
                 $pdf->Write(5, '4');
             }
@@ -118,7 +124,7 @@ class GenerateW9PdfJob implements ShouldQueue
 
             $pdf->SetFont('Helvetica', 'B', 12);
 
-            $ssn = $this->formData['w9_ssn'];
+            $ssn = (string) ($this->formData['w9_ssn'] ?? '');
             $pdf->SetXY(147.5, 134);
             for ($i = 0; $i < strlen($ssn); $i++) {
                 $pdf->Write(5, $ssn[$i]);
@@ -128,7 +134,7 @@ class GenerateW9PdfJob implements ShouldQueue
                     $pdf->SetX($pdf->GetX() + 3); // normal space
                 }
             }
-            $ein = $this->formData['w9_ein'];
+            $ein = (string) ($this->formData['w9_ein'] ?? '');
             $pdf->SetXY(147.5, 150);
             for ($i = 0; $i < strlen($ein); $i++) {
                 $pdf->Write(5, $ein[$i]);
@@ -140,7 +146,6 @@ class GenerateW9PdfJob implements ShouldQueue
             }
 
             $signatureData = $this->signature;
-            $signaturePath = storage_path('app/temp_signature.png');
 
             if (str_starts_with($signatureData, 'data:image')) {
                 $signatureData = explode(',', $signatureData)[1];
@@ -153,34 +158,28 @@ class GenerateW9PdfJob implements ShouldQueue
 
             // === 4️⃣ Save to storage ===
             $fileName = 'form_w9_'.time().'.pdf';
-            $storagePath = storage_path("app/public/{$fileName}");
 
             $pdf->Output($storagePath, 'F'); // “F” = file save
 
             Log::info('Owner w9 PDF generated successfully', [
                 'Building Name' => $this->buildingData['name'] ?? 'Unknown',
                 'Filename' => $fileName,
-                'File Path' => $storagePath,
             ]);
 
-            // Optional: Upload to Propertyware (if needed)
-            if (file_exists($storagePath)) {
-                $this->uploadToPropertyware($storagePath, $fileName, $this->buildingData['id']);
-
-                if (file_exists($signaturePath)) {
-                    unlink($signaturePath);
-                }
-                if (file_exists($storagePath)) {
-                    unlink($storagePath);
-                }
-            }
-
+            $this->uploadToPropertyware($storagePath, $fileName, $this->buildingData['id']);
         } catch (\Exception $e) {
             Log::error('Failed to generate w9 PDF: '.$e->getMessage(), [
                 'Building ID' => $this->buildingData['id'] ?? 'unknown',
                 'Error' => $e->getMessage(),
                 'Stack Trace' => $e->getTraceAsString(),
             ]);
+
+            // Rethrow so the job is retried and, if it still fails, kept in
+            // failed_jobs where it can be retried - the owner's answers live nowhere else.
+            throw $e;
+        } finally {
+            @unlink($signaturePath);
+            @unlink($storagePath);
         }
     }
 
