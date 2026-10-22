@@ -1,0 +1,209 @@
+# Production stack for tx-maintenance on the company VPS, following the
+# tx-chatbot-vps / corepath-website pattern.
+#
+#   host nginx :443 (TLS) -> 127.0.0.1:8090/8091 -> web -> app (php-fpm)
+#                                                          \-> reverb (/app, /apps)
+#   app, queue, scheduler, reverb, migrate: one image, different commands.
+#   MySQL runs on the host and is reached over its Unix socket.
+#
+# Two env files with different jobs:
+#   .env         read by Compose itself for ${...} (APP_SLUG, HTTP_PORT_RANGE,
+#                COMPOSE_PROFILES, VITE_*) -- see env.example
+#   .env.docker  the Laravel environment, handed to the containers -- see
+#                env.docker.example
+#
+# Deploy with bin/deploy.sh -- it rolls app and web without downtime. A plain
+# `docker compose up -d` stops each container before starting its replacement.
+#
+# The per-service blocks repeat rather than share a YAML anchor: merge keys are
+# YAML 1.1 and strict 1.2 parsers refuse them. Keep them in step.
+name: ${APP_SLUG:-txmaint}
+
+services:
+  app:
+    build:
+      context: .
+      target: app
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-TexasRenters.com Maintenance}
+        VITE_REVERB_APP_KEY: ${VITE_REVERB_APP_KEY:?VITE_REVERB_APP_KEY is required}
+        VITE_REVERB_PORT: ${VITE_REVERB_PORT:-443}
+        VITE_REVERB_SCHEME: ${VITE_REVERB_SCHEME:-https}
+    image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      # MySQL's socket directory. Mounting the directory does NOT by itself
+      # survive a mysqld restart: mysql.service's RuntimeDirectory=mysqld makes
+      # systemd delete and recreate /run/mysqld on every restart (new inode),
+      # and a running container keeps the old, empty one -- "SQLSTATE[HY000]
+      # [2002] No such file or directory". What keeps it working is the host
+      # drop-in RuntimeDirectoryPreserve=yes (host/install.sh), plus /up
+      # checking the database so a stale mount shows as unhealthy.
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - edge
+    # Health check comes from the image: /up through FastCGI.
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-TexasRenters.com Maintenance}
+        VITE_REVERB_APP_KEY: ${VITE_REVERB_APP_KEY:?VITE_REVERB_APP_KEY is required}
+        VITE_REVERB_PORT: ${VITE_REVERB_PORT:-443}
+        VITE_REVERB_SCHEME: ${VITE_REVERB_SCHEME:-https}
+    image: ${APP_SLUG:-txmaint}/web:${APP_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      # Read-only: nginx serves uploaded files, only the app writes them.
+      - storage-app:/var/www/html/storage/app:ro
+      # Every build's JS/CSS, so tabs opened before a deploy keep working.
+      - build-history:/var/www/html/public/build-history
+    ports:
+      # Loopback only; the host's nginx terminates TLS and proxies here. A
+      # two-port range so bin/deploy.sh can run the old and new replica side
+      # by side; the host nginx upstream lists both ports. 8090-8091, not
+      # 8080-8081: tx-chatbot already holds that range if it shares the box.
+      - '127.0.0.1:${HTTP_PORT_RANGE:-8090-8091}:80'
+    # nginx alone joins `edge` too: a published port needs a network with an
+    # outside route, and nginx makes no outbound calls of its own.
+    networks:
+      - internal
+      - edge
+
+  reverb:
+    image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'reverb:start' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # One-shot, run by bin/deploy.sh before the rollout. The profile keeps it out
+  # of `docker compose up`, so replicas never race each other on the schema.
+  migrate:
+    image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
+    profiles: [tools]
+    restart: "no"
+    command: php artisan migrate --force
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+
+  # queue and scheduler are OFF unless their profile is listed in .env's
+  # COMPOSE_PROFILES: `queue`, `scheduler`, or `queue,scheduler` at cutover.
+  # Separate so a test can run the queue (e.g. support-app messages in
+  # CHATBOT_HUB_TEST_MODE) while nothing automated is ever scheduled.
+  # While Azure is still production, the VPS database is a copy of the live
+  # one: its jobs table holds the same pending SMS/email/Jobber jobs, and the
+  # schedule texts tenants, vendors and owners, imports PropertyWare and syncs
+  # Twilio. Turning either on beside Azure would do all of that twice. Enable
+  # them at cutover, after Azure's workers are stopped.
+  queue:
+    image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
+    profiles: [queue]
+    restart: unless-stopped
+    # Same limits as Azure's worker (startup.sh). ImportJobberDataJob runs up
+    # to 700s, so the grace period must exceed --timeout or a deploy kills it
+    # mid-flight. DB_QUEUE_RETRY_AFTER must exceed it too (env.docker.example).
+    stop_grace_period: 750s
+    command: php artisan queue:work --sleep=3 --timeout=720 --tries=9 --max-time=3600
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - edge
+    # The process check alone would stay green while the worker cannot reach
+    # MySQL; migrate:status proves the database answers.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'queue:work' > /dev/null && php artisan migrate:status > /dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
+
+  scheduler:
+    image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
+    profiles: [scheduler]
+    restart: unless-stopped
+    command: php artisan schedule:work
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'schedule:work' > /dev/null && php artisan migrate:status > /dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  # Created by hand on a fresh host, so compose never owns (or removes) them:
+  #   docker volume create txmaint_storage-app
+  #   docker volume create txmaint_storage-logs
+  #   docker volume create txmaint_build-history
+  # storage-app holds every uploaded attachment, photo and generated PDF -- the
+  # only application state not in MySQL. Back it up with the database.
+  storage-app:
+    external: true
+    name: ${APP_SLUG:-txmaint}_storage-app
+  storage-logs:
+    external: true
+    name: ${APP_SLUG:-txmaint}_storage-logs
+  # JS/CSS from past builds; see docker/keep-built-assets.sh.
+  build-history:
+    external: true
+    name: ${APP_SLUG:-txmaint}_build-history
+
+networks:
+  # ISOLATE_APP=true (in .env) makes this network internal-only: app, reverb,
+  # migrate, queue and scheduler get NO route to the internet, so they cannot
+  # send SMS (Twilio), email, chatbot-hub messages, or call Jobber,
+  # PropertyWare, Asana or AI providers -- not even from code paths that send
+  # inline during a web request. MySQL is unaffected (Unix socket).
+  # Use while Azure is production and this stack runs on a copy of its data;
+  # set it to false at cutover.
+  internal:
+    driver: bridge
+    internal: ${ISOLATE_APP:-true}
+  edge:
+    driver: bridge

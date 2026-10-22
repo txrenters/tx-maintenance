@@ -1,15 +1,13 @@
 # Deploy tx-maintenance to the VPS that serves maintenance.texasrenters.com.
 #
-# Follows tx-chatbot's deploy-vps.yml. It does what the manual bin/push.sh in
-# tx-maintenance-vps does, minus the Docker files: rsync the tree to
-# /opt/tx-maintenance and run bin/deploy.sh there, which builds the images and
-# rolls app and web one replica at a time (old container keeps serving until
-# the new one is healthy), so a deploy has no downtime.
+# Follows tx-chatbot's deploy-vps.yml: rsync the tree to /opt/tx-maintenance and
+# run bin/deploy.sh there, which builds the images and rolls app and web one
+# replica at a time (old container keeps serving until the new one is healthy),
+# so a deploy has no downtime.
 #
-# The Docker files (Dockerfile, docker-compose.yml, docker/, bin/, host/) are
-# NOT in this repo -- they live in the tx-maintenance-vps folder and are already
-# on the server. The rsync below excludes them so they survive a deploy. If one
-# of them changes, it still needs a manual bin/push.sh from tx-maintenance-vps.
+# The Docker files (Dockerfile, docker-compose.yml, docker/, bin/, host/) live in
+# this repo and ship with every deploy, so a change to them (e.g. the PHP
+# version) goes out like any other commit. compose.yaml is Sail's, local only.
 #
 # Required repository secrets:
 #   VPS_SSH_KEY  private key whose public half is in the VPS's authorized_keys
@@ -111,13 +109,7 @@ jobs:
             --exclude '/database.sqlite' \
             --exclude '/*.log' \
             --exclude '/*.sql' \
-            --exclude '/Dockerfile' \
-            --exclude '/docker-compose.yml' \
             --exclude '/compose.yaml' \
-            --exclude '/.dockerignore' \
-            --exclude '/docker/' \
-            --exclude '/bin/' \
-            --exclude '/host/' \
             ./ "$VPS_USER_CLEAN@$VPS_HOST_CLEAN:/opt/tx-maintenance/"
 
       - name: Build and roll out
