@@ -403,6 +403,15 @@ class InboundTwilioMessageProcessor
                 ?? $this->matchByEitherDirection($fromDigits, $toDigits)
                 ?? $this->matchByLegacyExactPair($from, $to);
 
+        if ($match && $this->jobberTextIsNewer($match, $fromDigits, $toDigits)) {
+            Log::info('Inbound SMS left to the Jobber thread: our newest text on this pair was a Jobber text', $match->logContext() + [
+                'from' => $from,
+                'to' => $to,
+            ]);
+
+            return null;
+        }
+
         if ($match) {
             Log::info('Inbound SMS routed to work-order thread', $match->logContext() + [
                 'from' => $from,
@@ -411,6 +420,36 @@ class InboundTwilioMessageProcessor
         }
 
         return $match;
+    }
+
+    /**
+     * Whether the newest text we sent on this phone pair is a Jobber text (a
+     * TBP notice or reminder, a job message) rather than a work-order one.
+     * The THMP number sends both, so an old, even closed, work order on the
+     * same pair used to capture the replies to yesterday's TBP notice
+     * (2026-10-23, +13468236941 filed on work order 2864 instead of Jobber
+     * job 10550). A Ref footer still names the work order outright.
+     */
+    protected function jobberTextIsNewer(InboundThreadMatch $match, ?string $fromDigits, ?string $toDigits): bool
+    {
+        if ($fromDigits === null || $toDigits === null || in_array($match->strategy, ['ref', 'ref_party'], true)) {
+            return false;
+        }
+
+        $jobberSentAt = JobberTextMessage::query()
+            ->where('sender_number', 'like', '%'.$toDigits)
+            ->where('receiver_number', 'like', '%'.$fromDigits)
+            ->whereHas('jobber', fn ($job) => $job->where('job_status', '!=', 'archived'))
+            ->max('created_at');
+
+        if ($jobberSentAt === null) {
+            return false;
+        }
+
+        $workOrderSentAt = $this->whereSentTo($this->usableThreadQuery(), $fromDigits, $toDigits)
+            ->first()?->created_at;
+
+        return $workOrderSentAt === null || Carbon::parse($jobberSentAt)->gt($workOrderSentAt);
     }
 
     /**

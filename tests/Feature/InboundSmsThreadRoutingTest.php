@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
+use App\Models\JobberTextMessage;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TwilioPhoneNumber;
@@ -364,5 +368,96 @@ class InboundSmsThreadRoutingTest extends TestCase
     private function messageCountOn(WorkOrder $workOrder): int
     {
         return Conversation::query()->where('work_order_id', $workOrder->id)->count();
+    }
+
+    public function test_a_reply_to_yesterdays_tbp_notice_lands_on_the_jobber_job_not_an_old_work_order(): void
+    {
+        // 2026-10-23: +13468236941 answered the TBP notice ("Sounds good") and
+        // the reply was filed on an old THMP work order's vendor-tenant thread.
+        $oldWorkOrder = $this->seedWorkOrder(['status' => 'Closed']);
+        $this->seedOutbound($oldWorkOrder, 'vendor_tenant', self::TENANT_PHONE, now()->subMonths(3));
+        $job = $this->seedJobberJob();
+        $this->seedJobberOutbound($job, now()->subDay());
+
+        $this->postInbound('Sounds good', 'SM_tbp_1')->assertNoContent();
+
+        $this->assertSame(1, $this->messageCountOn($oldWorkOrder), 'The old work order should have kept only its seeded message.');
+        $this->assertTrue(JobberTextMessage::query()
+            ->where('jobber_id', $job->id)
+            ->where('sender_number', self::TENANT_PHONE)
+            ->where('messages', 'Sounds good')
+            ->exists());
+    }
+
+    public function test_a_work_order_text_newer_than_the_tbp_notice_still_wins(): void
+    {
+        $workOrder = $this->seedWorkOrder();
+        $job = $this->seedJobberJob();
+        $this->seedJobberOutbound($job, now()->subDays(2));
+        $this->seedOutbound($workOrder, 'tenant', self::TENANT_PHONE, now()->subHour());
+
+        $this->postInbound('Tuesday works', 'SM_tbp_2')->assertNoContent();
+
+        $this->assertSame($workOrder->id, (int) $this->storedMessage('SM_tbp_2')->work_order_id);
+    }
+
+    public function test_a_ref_footer_beats_a_newer_tbp_notice(): void
+    {
+        $workOrder = $this->seedWorkOrder();
+        $this->seedOutbound($workOrder, 'tenant', self::TENANT_PHONE, now()->subWeek());
+        $this->seedJobberOutbound($this->seedJobberJob(), now()->subDay());
+
+        $this->postInbound("Still leaking\n(Ref: WO#{$workOrder->work_order_no})", 'SM_tbp_3')->assertNoContent();
+
+        $this->assertSame($workOrder->id, (int) $this->storedMessage('SM_tbp_3')->work_order_id);
+    }
+
+    public function test_a_text_on_an_archived_job_does_not_pull_replies_off_the_work_order(): void
+    {
+        $workOrder = $this->seedWorkOrder();
+        $this->seedOutbound($workOrder, 'tenant', self::TENANT_PHONE, now()->subWeek());
+        $this->seedJobberOutbound($this->seedJobberJob('archived'), now()->subDay());
+
+        $this->postInbound('ok', 'SM_tbp_4')->assertNoContent();
+
+        $this->assertSame($workOrder->id, (int) $this->storedMessage('SM_tbp_4')->work_order_id);
+    }
+
+    private function seedJobberJob(string $status = 'active'): Jobber
+    {
+        $client = JobberClient::query()->create([
+            'jobber_id' => 'client-'.uniqid(),
+            'name' => '418 Drennan St',
+            'jobber_web_uri' => 'https://example.test',
+        ]);
+
+        $property = JobberProperty::query()->create([
+            'jobber_id' => 'property-'.uniqid(),
+            'jobber_client_id' => $client->id,
+        ]);
+
+        return Jobber::query()->create([
+            'jobber_id' => 'job-'.uniqid(),
+            'job_number' => '10550',
+            'title' => 'Zone 4 - Q4 TBP',
+            'job_status' => $status,
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $property->id,
+        ]);
+    }
+
+    /**
+     * A TBP notice we sent from the THMP number to the tenant.
+     */
+    private function seedJobberOutbound(Jobber $job, Carbon $at): void
+    {
+        $text = JobberTextMessage::query()->create([
+            'messages' => 'Good day, As part of your Tenant Benefit Package (TBP)...',
+            'sender_number' => self::TWILIO_PHONE,
+            'receiver_number' => self::TENANT_PHONE,
+            'jobber_id' => $job->id,
+        ]);
+
+        JobberTextMessage::query()->whereKey($text->id)->update(['created_at' => $at]);
     }
 }
