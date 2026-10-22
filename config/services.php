@@ -431,6 +431,15 @@ return [
         // Off = the line is never ticked by the system.
         'tenant_completion_judge' => env('TENANT_COMPLETION_AI_JUDGE_ENABLED', true),
         'tenant_completion_min_confidence' => (int) env('TENANT_COMPLETION_AI_MIN_CONFIDENCE', 80),
+
+        // Before the 7/3/1-day TBP visit reminders, the AI reads each
+        // tenant's text replies: a tenant who confirmed gets the short
+        // "thank you for confirming" reminder instead of being asked to
+        // confirm again (2026-10-23). No reply, low confidence, no provider
+        // or an AI error = not confirmed, the old messages. Off = the old
+        // messages for everyone.
+        'tbp_confirmation_judge' => env('TBP_REMINDER_CONFIRMATION_JUDGE_ENABLED', true),
+        'tbp_confirmation_min_confidence' => (int) env('TBP_REMINDER_CONFIRMATION_MIN_CONFIDENCE', 75),
     ],
 
     'hvac_board' => [

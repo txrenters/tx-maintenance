@@ -799,6 +799,35 @@ class AutomatedMessageTemplates
                 ."            Warm regards,\n"
                 .'            TexasRenters.com, LLC',
         ],
+        'tenant_job_reminder_confirmed' => [
+            'automation' => 'tenant_job_reminder_sms',
+            'label' => 'Tenant already confirmed',
+            'group' => 'tenant_job_reminder',
+            'channel' => 'sms_email',
+            'audience' => 'tenant',
+            'sends_when' => 'Replaces the 7-day, 3-day and day-before reminder for a tenant whose text reply the AI read as confirming the visit, so they are not asked to confirm again. Tenants who have not confirmed keep getting the regular reminder.',
+            'tokens' => [
+                'CLIENT_NAME' => "The tenant's name as it appears on the Jobber client",
+                'VISIT_DAY' => 'The visit date, starting with "tomorrow," on the day-before reminder',
+            ],
+            'required' => ['VISIT_DAY'],
+            'sample' => [
+                'CLIENT_NAME' => 'Jane Doe',
+                'VISIT_DAY' => 'tomorrow, Monday, August 24, 2026',
+            ],
+            'collapse' => false,
+            'default' => "Hello {CLIENT_NAME},\n\n"
+                ."This is a friendly reminder that your Tenant Benefit Package (TBP) visit is scheduled for {VISIT_DAY}.\n\n"
+                ."The scheduled services include:\n"
+                ."* Pest control treatment\n"
+                ."* Air filter replacement\n"
+                ."* Occupied property inspection\n\n"
+                ."Please ensure that all service areas are accessible and that any pets are properly secured before the visit. You do not need to be present, as Texas Renters will provide access to our technician.\n\n"
+                ."Our technician will notify you before arrival, as we cannot guarantee an exact arrival time.\n\n"
+                ."Thank you for confirming your appointment. We appreciate your cooperation!\n\n"
+                ."Warm regards,\n"
+                .'TexasRenters.com, LLC',
+        ],
         'tenant_tbp_visit_notice' => [
             'automation' => 'tenant_tbp_visit_notice_sms',
             'label' => 'Send notification button',

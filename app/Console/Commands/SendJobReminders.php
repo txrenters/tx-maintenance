@@ -13,6 +13,7 @@ use App\Services\JobberAutomationSettings;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\PhoneFormatter;
 use App\Services\PropertyWareTenantReport;
+use App\Services\TbpVisitConfirmationService;
 use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
 use Carbon\Carbon;
@@ -584,6 +585,14 @@ class SendJobReminders extends Command
             $visit->{$notifiedField} = true;
             $visit->save();
 
+            // From the 7-day reminder on, a tenant whose reply confirmed the
+            // visit gets the short thank-you reminder instead of being asked
+            // to confirm again (2026-10-23). Judged per phone number; the
+            // tenant's email follows their own text verdict.
+            $confirmedNames = $this->confirmedTenantNames($visit, $notifiedField, $uniqueRecipients);
+            $confirmedText = AutomatedMessageTemplates::raw('tenant_job_reminder_confirmed');
+            $visitDay = $notifiedField === 'notified_1_days' ? 'tomorrow, '.$visitDate : $visitDate;
+
             // With only one channel muted the visit is still flagged by the
             // other, so the muted channel's copy is dropped, not queued —
             // "off means dropped", same as the vendor-assignment gate.
@@ -598,8 +607,8 @@ class SendJobReminders extends Command
             foreach ($uniqueRecipients as $recipient) {
                 $phoneNumber = $recipient['phone'];
                 $clientName = $recipient['name'];
-                $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
-                $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+                $tenantConfirmed = isset($confirmedNames[$clientName]);
+                $message2 = $this->reminderBody($tenantConfirmed ? $confirmedText : $messageText, $clientName, $visitDate, $visitDay);
 
                 try {
                     Log::info('Sending job reminder SMS', [
@@ -663,6 +672,7 @@ class SendJobReminders extends Command
                             'jobber_visit_id' => $visit->id,
                             'job_number' => $visit->job->job_number,
                             'jobber_text_message_id' => $text->id,
+                            'tenant_confirmed' => $tenantConfirmed,
                         ],
                     );
 
@@ -727,8 +737,8 @@ class SendJobReminders extends Command
             foreach ($uniqueEmails as $recipient) {
                 $emailAddress = $recipient['email'];
                 $recipientName = $recipient['name'];
-                $message = str_replace('{CLIENT_NAME}', $recipientName, $messageText);
-                $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+                $tenantConfirmed = isset($confirmedNames[$recipientName]);
+                $message2 = $this->reminderBody($tenantConfirmed ? $confirmedText : $messageText, $recipientName, $visitDate, $visitDay);
 
                 // Lead the subject with the property so staff can tell at a
                 // glance which property an email is about; fall back to the
@@ -777,6 +787,7 @@ class SendJobReminders extends Command
                             'jobber_visit_id' => $visit->id,
                             'job_number' => $visit->job->job_number,
                             'subject' => $subjectLine,
+                            'tenant_confirmed' => $tenantConfirmed,
                         ],
                     );
 
@@ -806,6 +817,57 @@ class SendJobReminders extends Command
         }
 
         Log::info('Number of visit: ('.count($visits).") for date: {$scheduled_date->toDateString()}");
+    }
+
+    /**
+     * The PropertyWare names of the tenants whose text replies confirmed
+     * this visit. The 14-day notice is the first ask, so nobody has
+     * confirmed before it.
+     *
+     * @param  array<string, array{phone: string, name: string}>  $recipients
+     * @return array<string, true>
+     */
+    protected function confirmedTenantNames(JobberVisit $visit, string $notifiedField, array $recipients): array
+    {
+        if ($notifiedField === 'notified_14_days') {
+            return [];
+        }
+
+        $confirmation = app(TbpVisitConfirmationService::class);
+
+        if (! $confirmation->enabled()) {
+            return [];
+        }
+
+        $confirmedNames = [];
+
+        foreach ($recipients as $recipient) {
+            $verdict = $confirmation->judge($visit, $recipient['phone']);
+
+            Log::info('TBP visit confirmation judged', [
+                'jobber_visit_id' => $visit->id,
+                'tenant_name' => $recipient['name'],
+                'phone' => $recipient['phone'],
+                'notification_type' => $notifiedField,
+                'confirmed' => $verdict['confirmed'],
+                'reason' => $verdict['reason'],
+            ]);
+
+            if ($verdict['confirmed']) {
+                $confirmedNames[$recipient['name']] = true;
+            }
+        }
+
+        return $confirmedNames;
+    }
+
+    protected function reminderBody(string $template, string $tenantName, string $visitDate, string $visitDay): string
+    {
+        return str_replace(
+            ['{CLIENT_NAME}', '{SCHEDULED_DATE}', '{VISIT_DAY}'],
+            [$tenantName, $visitDate, $visitDay],
+            $template,
+        );
     }
 
     /**
