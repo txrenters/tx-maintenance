@@ -271,6 +271,7 @@ Route::middleware([
     Route::get('/work_orders/{workOrder}/conversation/vendor_tenant', [ConversationController::class, 'get_vendor_tenant_conversation'])->name('work_order.vendor_tenant_conversation');
     Route::get('/work_orders/{workOrder}/conversation/vendors_owner', [ConversationController::class, 'get_vendor_owner_conversation'])->name('work_order.vendor_owner_conversation');
     Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
+    Route::get('/work_orders/{workOrder}/conversation/tenants/thmp', [ConversationController::class, 'get_tenant_thmp_texts'])->name('work_order.tenant_thmp_texts');
     Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
     Route::post('/notification/messages', [ConversationController::class, 'get_conversation'])->name('work_order.notification_messages');
     Route::get('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'show'])->name('work_order.automation.show');
