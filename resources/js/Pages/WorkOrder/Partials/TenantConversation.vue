@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
-import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
 import { Button } from "@/Components/ui/button";
@@ -190,62 +189,6 @@ watch(
     },
     { deep: true }
 );
-
-// The tenant's texts with the THMP number (TBP notices and replies, the
-// vendor-tenant thread) - read-only, staff only, so a TBP reply can be
-// found from the work order (2026-10-23).
-const isStaff = computed(() =>
-    (page.props.auth?.user?.roles || []).some((role) =>
-        ["admin", "woc", "accounting"].includes(role)
-    )
-);
-const thmpTexts = ref([]);
-const lastTen = (value) => String(value ?? "").replace(/\D+/g, "").slice(-10);
-
-const labelledThmpTexts = computed(() =>
-    thmpTexts.value.map((msg) => {
-        const text = `[${msg.source_label}]\n${msg.message ?? msg.messages ?? ""}`;
-
-        return { ...msg, message: text, messages: text };
-    })
-);
-
-const thmpOurNumber = computed(() => {
-    const tenantDigits = new Set(
-        [
-            ...(props.workOrderTenants ?? []).flatMap((tenant) => [
-                tenant.mobile_phone,
-                tenant.home_phone,
-            ]),
-            props.workOrder?.requested?.mobile_phone,
-            props.workOrder?.requested_by?.mobile_phone,
-        ]
-            .map(lastTen)
-            .filter((digits) => digits.length === 10)
-    );
-
-    return (
-        thmpTexts.value.find(
-            (msg) => !tenantDigits.has(lastTen(msg.sender_number))
-        )?.sender_number ?? ""
-    );
-});
-
-const fetchThmpTexts = async () => {
-    if (!isStaff.value || !props.workOrder?.id) return;
-
-    try {
-        const response = await axios.get(
-            route("work_order.tenant_thmp_texts", props.workOrder.id)
-        );
-        thmpTexts.value = response.data.thmp_texts ?? [];
-    } catch (error) {
-        thmpTexts.value = [];
-    }
-};
-
-onMounted(fetchThmpTexts);
-watch(() => props.workOrder?.id, fetchThmpTexts);
 </script>
 
 <template>
@@ -358,26 +301,6 @@ watch(() => props.workOrder?.id, fetchThmpTexts);
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>
-
-            <div v-if="labelledThmpTexts.length" class="grid gap-2">
-                <p class="text-xs font-semibold uppercase tracking-wide">
-                    Tenant ↔ THMP / TBP texts
-                    <span class="font-normal normal-case text-muted-foreground">
-                        · read-only · TBP notices and replies, technician texts
-                    </span>
-                </p>
-                <ScrollArea
-                    class="bg-secondary h-[40vh] max-h-[420px] min-h-[200px] rounded-md p-3"
-                >
-                    <MessageCard
-                        :messages="labelledThmpTexts"
-                        :sender="thmpOurNumber"
-                        :participants="participants"
-                        :show-delete="false"
-                        inbound-recipient-label="THMP / TBP line"
-                    />
-                </ScrollArea>
-            </div>
 
             <!-- Quick-insert templates -->
             <div v-if="hasThmpVendor" class="flex flex-wrap gap-2">

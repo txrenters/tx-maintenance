@@ -127,61 +127,6 @@ class ConversationController extends Controller
         return response()->json($workOrder, 200);
     }
 
-    public function get_tenant_thmp_texts(WorkOrder $workOrder)
-    {
-        abort_unless(auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
-
-        $workOrder->loadMissing(['tenants', 'requested_by']);
-
-        return response()->json(['thmp_texts' => $this->thmpTextsWithTenant($workOrder)], 200);
-    }
-
-    /**
-     * The tenant's texts with the THMP number that the Tenant tab's own
-     * thread never shows: this work order's vendor-tenant thread, and every
-     * Jobber text (TBP notices, reminders and the tenant's replies) to or
-     * from the tenant's numbers. Read-only for staff (2026-10-23: staff could
-     * not find a tenant's TBP replies from the work order).
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function thmpTextsWithTenant(WorkOrder $workOrder): array
-    {
-        $vendorTenant = $workOrder->vendor_tenant_conversation()->with('media')->get()
-            ->map(fn (Conversation $message): array => $message->toArray() + ['source_label' => 'THMP / vendor text on this work order']);
-
-        $tenantNumbers = $workOrder->tenants
-            ->push($workOrder->requested_by)
-            ->filter()
-            ->flatMap(fn ($tenant): array => [$tenant->mobile_phone, $tenant->home_phone])
-            ->map(fn ($number): string => substr((string) preg_replace('/\D/', '', (string) $number), -10))
-            ->filter(fn (string $digits): bool => strlen($digits) === 10)
-            ->unique()
-            ->values();
-
-        $jobberTexts = $tenantNumbers->isEmpty()
-            ? collect()
-            : JobberTextMessage::query()
-                ->with('jobber:id,job_number,title')
-                ->where(function ($query) use ($tenantNumbers): void {
-                    foreach ($tenantNumbers as $digits) {
-                        $query->orWhere('receiver_number', 'like', '%'.$digits)
-                            ->orWhere('sender_number', 'like', '%'.$digits);
-                    }
-                })
-                ->latest()
-                ->limit(100)
-                ->get()
-                ->map(fn (JobberTextMessage $message): array => $message->toArray() + [
-                    'source_label' => 'Jobber job #'.($message->jobber?->job_number ?? '?').' - '.($message->jobber?->title ?? 'TBP / THMP'),
-                ]);
-
-        return $vendorTenant->concat($jobberTexts)
-            ->sortBy('created_at')
-            ->values()
-            ->all();
-    }
-
     public function get_owner_conversation(WorkOrder $workOrder)
     {
         $this->assertCanViewConversation($workOrder, 'owner');

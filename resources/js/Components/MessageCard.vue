@@ -33,8 +33,6 @@ const props = defineProps({
     showDelete: { type: Boolean, default: true },
     /** Accepted for API compatibility; the To/From numbers always render. */
     showNumbers: { type: Boolean, default: false },
-    /** Who a client's incoming message is shown as addressed to. */
-    inboundRecipientLabel: { type: String, default: "Work Order Coordinator" },
 });
 
 const TIMEZONE = "America/Chicago";
@@ -308,7 +306,7 @@ const resendMessage = async (msg) => {
 <template>
     <div
         v-for="(msg, index) in sourceMessages"
-        :key="msg.id ? `${msg.jobber_id ? 'j' : 'c'}${msg.id}` : `msg-${index}`"
+        :key="msg.id ?? `msg-${index}`"
         class="mt-2 flex items-end"
         :class="isOutbound(msg) ? 'flex-row-reverse' : 'flex-row'"
         v-motion-slide-visible-right
@@ -341,7 +339,7 @@ const resendMessage = async (msg) => {
                 <span
                     v-if="!isOutbound(msg)"
                     :title="msg.receiver_number"
-                    >{{ inboundRecipientLabel }}</span
+                    >Work Order Coordinator</span
                 >
                 <template v-else>
                     <template v-if="participantLabel(msg.receiver_number)">
