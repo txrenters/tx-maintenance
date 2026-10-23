@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Conversation;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\AnsweredNotificationReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -143,6 +144,34 @@ class AnsweredNotificationReaderTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertTrue($this->isRead($message));
+    }
+
+    public function test_a_vendor_posting_from_the_send_endpoint_answers_nothing(): void
+    {
+        Bus::fake();
+        Role::findOrCreate('vendor', 'web');
+        $user = tap(User::factory()->create())->assignRole('vendor');
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-1234',
+            'name' => 'Ace Plumbing',
+            'vendor_type' => 'Maintenance',
+            'is_active' => true,
+            'user_id' => $user->id,
+        ]);
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id);
+        $message = $this->inbound($workOrder, 'vendor');
+
+        $this->actingAs($user)->post(route('work_order.conversation.send'), [
+            'text' => 'Done.',
+            'work_order_id' => $workOrder->id,
+            'sender_phone_number' => '+15550000000',
+            'receiver_phone_number' => '+15551111111',
+            'conversation_type' => 'vendor',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($this->isRead($message));
+        $this->assertNull($message->fresh()->answered_at);
     }
 
     public function test_a_staff_reply_in_chat_support_clears_the_thread(): void

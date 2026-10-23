@@ -283,8 +283,9 @@ class ConversationController extends Controller
             'is_mms' => $hasImages,
         ]);
 
-        // A coordinator replying answers the thread's waiting messages.
-        if (! $this->isPortalParty($user)) {
+        // A coordinator replying answers the thread's waiting messages. Only
+        // staff: a vendor posting here, or a stateless API call, answers nothing.
+        if ($user?->hasAnyRole(['admin', 'woc', 'accounting'])) {
             app(AnsweredNotificationReader::class)->markAnsweredBy($conversation);
         }
 
