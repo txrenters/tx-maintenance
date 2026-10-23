@@ -871,6 +871,9 @@ const quickMessageCount = computed(() => displayMessage.value.length);
 const conversations = ref([]);
 const receiver_number = ref("");
 const sender_number = ref("");
+// Who the outside number belongs to ("Owner" / "Yen Nguyen"), from the bell
+// entry the modal was opened from.
+const receiver_party = ref(null);
 const conversation_type = ref("");
 const reference_id = ref("");
 const notif = ref(null);
@@ -894,7 +897,13 @@ const openNotificationTarget = (notification) => {
     }
 };
 
-const handleChatModal = async (model, shouldReverse = true) => {
+// party is the bell entry's sender; left out on a refresh after sending, so
+// the name stays.
+const handleChatModal = async (model, shouldReverse = true, party = undefined) => {
+    if (party !== undefined) {
+        receiver_party.value = party;
+    }
+
     const response = await axios.post(route("work_order.notification_messages"), {
         data: model,
     });
@@ -1966,6 +1975,8 @@ onUnmounted(() => {
                                                                     @click.prevent="
                                                                         handleChatModal(
                                                                             notification.subject,
+                                                                            true,
+                                                                            notification.sender,
                                                                         )
                                                                     "
                                                                 >
@@ -2223,7 +2234,7 @@ onUnmounted(() => {
                         variant="outline"
                         @click.prevent="
                             openFailedModal = false;
-                            handleChatModal(failedNotification.subject, false);
+                            handleChatModal(failedNotification.subject, false, null);
                         "
                     >
                         View Conversation
@@ -2255,6 +2266,12 @@ onUnmounted(() => {
                 <div class="flex justify-between gap-2 mb-2">
                     <div class="flex flex-col text-left">
                         <p>Receiver:</p>
+                        <p v-if="receiver_party" class="font-semibold">
+                            {{ receiver_party.name }}
+                            <span class="text-sm font-normal text-muted-foreground">
+                                ({{ receiver_party.role }})
+                            </span>
+                        </p>
                         {{ receiver_number }}
                     </div>
 
