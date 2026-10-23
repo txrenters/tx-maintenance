@@ -1738,9 +1738,7 @@ onUnmounted(() => {
                                                                     'message_undelivered',
                                                             'bg-yellow-500':
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded',
+                                                                'uploaded',
                                                             'bg-orange-500':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
@@ -1767,9 +1765,7 @@ onUnmounted(() => {
                                                                     'message_undelivered',
                                                             'bg-yellow-100 text-yellow-600':
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded',
+                                                                'uploaded',
                                                             'bg-orange-100 text-orange-600':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
@@ -1805,9 +1801,7 @@ onUnmounted(() => {
                                                             class="w-4 h-4"
                                                             v-else-if="
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded'
+                                                                'uploaded'
                                                             "
                                                         />
                                                         <FilePenIcon

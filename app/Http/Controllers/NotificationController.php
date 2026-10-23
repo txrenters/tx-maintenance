@@ -27,6 +27,12 @@ class NotificationController extends Controller
                 $q->whereNull('log_name')
                     ->orWhere('log_name', config('activitylog.default_log_name'));
             })
+            // Invoice uploads stay in the work order's activity log but are
+            // no longer bell notifications.
+            ->where(function ($q) {
+                $q->whereNull('event')
+                    ->orWhere('event', '!=', 'invoice_uploaded');
+            })
             ->latest();
 
         if ($user->hasAnyRole(['tenant', 'owner'])) {

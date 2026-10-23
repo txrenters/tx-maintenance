@@ -231,6 +231,51 @@ class NotificationScopeTest extends TestCase
         $this->assertNotContains($templateAudit->id, $ids);
     }
 
+    public function test_invoice_uploads_stay_out_of_the_bell(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $user = User::factory()->create()->assignRole('admin');
+
+        $invoiceUpload = Activity::create([
+            'log_name' => 'default', 'event' => 'invoice_uploaded',
+            'description' => 'Work Order #43732 - Invoice uploaded',
+            'properties' => ['filename' => 'invoice.pdf'],
+        ]);
+        $staffAlert = Activity::create([
+            'log_name' => 'default', 'event' => 'message_undelivered',
+            'description' => 'Message Undelivered', 'properties' => ['message' => 'Alert'],
+        ]);
+        $legacyRow = Activity::create([
+            'description' => 'legacy', 'properties' => ['message' => 'written before events'],
+        ]);
+
+        $ids = collect($this->actingAs($user)->getJson('/notifications')->assertOk()->json())
+            ->pluck('id')->all();
+
+        $this->assertNotContains($invoiceUpload->id, $ids);
+        $this->assertContains($staffAlert->id, $ids);
+        $this->assertContains($legacyRow->id, $ids);
+    }
+
+    public function test_invoice_uploads_never_reach_the_desktop(): void
+    {
+        Role::findOrCreate('woc', 'web');
+        $woc = User::factory()->create();
+        $woc->assignRole('woc');
+        // Unassigned, so an 'assigned' event would fall back to every WOC.
+        $workOrder = WorkOrder::factory()->create();
+
+        Notification::fake();
+
+        Activity::create([
+            'log_name' => 'default', 'event' => 'invoice_uploaded',
+            'description' => 'Invoice uploaded',
+            'properties' => ['filename' => 'invoice.pdf', 'work_order_id' => $workOrder->id],
+        ]);
+
+        Notification::assertNothingSent();
+    }
+
     public function test_named_audit_logs_never_reach_the_desktop(): void
     {
         Role::findOrCreate('woc', 'web');

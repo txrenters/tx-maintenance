@@ -104,7 +104,7 @@ class NotificationSenderTest extends TestCase
 
     public function test_a_notification_that_is_not_a_message_has_no_sender(): void
     {
-        $activity = activity()->event('invoice_uploaded')->withProperties(['message' => 'invoice.pdf'])->log('Invoice uploaded');
+        $activity = activity()->event('work_order_description_updated')->withProperties(['message' => 'Description changed'])->log('Description updated');
 
         $entry = $this->bellEntryFor($this->staffUser(), $activity);
 
