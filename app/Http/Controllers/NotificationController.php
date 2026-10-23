@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
+use App\Models\WorkOrder;
+use App\Services\ConversationParticipants;
 use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
 {
+    public function __construct(private ConversationParticipants $participants) {}
+
     public function fetchNotification()
     {
         $user = auth()->user();
@@ -57,11 +61,18 @@ class NotificationController extends Controller
 
         $activities = $query->take(1000)->get();
 
-        $activities->loadMorph('subject', [
-            JobberTextMessage::class => ['jobber'],
-        ]);
+        // Only staff are told who wrote in; owners, tenants and vendors never
+        // see the other parties' names.
+        $namesSenders = $user->hasAnyRole(['admin', 'woc', 'accounting']);
 
-        $result = $activities->map(function ($activity) {
+        $activities->loadMorph('subject', array_filter([
+            JobberTextMessage::class => ['jobber'],
+            Conversation::class => $namesSenders
+                ? ['work_order.owners', 'work_order.vendors', 'work_order.requested_by', 'work_order.tenants']
+                : null,
+        ]));
+
+        $result = $activities->map(function ($activity) use ($namesSenders) {
             return [
                 'id' => $activity->id,
                 'title' => $activity->description,
@@ -78,11 +89,66 @@ class NotificationController extends Controller
                 'subject' => $this->subjectSummary($activity->subject),
                 'timestamp' => $activity->created_at->timestamp,
                 'read' => $activity->properties['read'] ?? false,
+                'sender' => $namesSenders ? $this->senderOf($activity) : null,
             ];
         });
 
         return response()->json($result);
 
+    }
+
+    /**
+     * Who wrote the message a notification is about, as "Tenant" / "Owner"
+     * and their name: matched by the number they wrote from, else the
+     * thread's tenant, owner or vendor (ConversationParticipants).
+     *
+     * @return array{role: string, name: string}|null
+     */
+    private function senderOf(Activity $activity): ?array
+    {
+        $message = $activity->subject;
+
+        if ($activity->event !== 'work_order_message_received' || ! $message instanceof Conversation) {
+            return null;
+        }
+
+        $workOrder = $message->work_order;
+
+        if ($workOrder && ($known = $this->participantByPhone($workOrder, $message->sender_number))) {
+            return $known;
+        }
+
+        return [
+            'role' => $this->participants->partyLabel($message->conversation_type),
+            'name' => $this->participants->counterpartyName($message, $workOrder),
+        ];
+    }
+
+    /**
+     * @return array{role: string, name: string}|null
+     */
+    private function participantByPhone(WorkOrder $workOrder, ?string $phone): ?array
+    {
+        $key = $this->participants->phoneKey($phone);
+
+        if ($key === '') {
+            return null;
+        }
+
+        $candidates = collect([$workOrder->requested_by])
+            ->concat($workOrder->tenants)
+            ->filter()
+            ->map(fn ($tenant) => ['Tenant', $tenant->mobile_phone, $tenant->first_name.' '.$tenant->last_name])
+            ->concat($workOrder->owners->map(fn ($owner) => ['Owner', $owner->phone, $owner->first_name.' '.$owner->last_name]))
+            ->concat($workOrder->vendors->map(fn ($vendor) => ['Vendor', $vendor->twilio_number, $vendor->name]));
+
+        foreach ($candidates as [$role, $candidatePhone, $name]) {
+            if ($this->participants->phoneKey($candidatePhone) === $key && trim((string) $name) !== '') {
+                return ['role' => $role, 'name' => trim($name)];
+            }
+        }
+
+        return null;
     }
 
     /**

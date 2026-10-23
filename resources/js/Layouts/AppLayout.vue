@@ -1830,6 +1830,24 @@ onUnmounted(() => {
                                                             }}
                                                         </h4>
                                                         <p
+                                                            v-if="
+                                                                notification.sender
+                                                            "
+                                                            class="text-xs font-medium text-muted-foreground mt-0.5"
+                                                        >
+                                                            {{
+                                                                notification
+                                                                    .sender
+                                                                    .role
+                                                            }}
+                                                            ·
+                                                            {{
+                                                                notification
+                                                                    .sender
+                                                                    .name
+                                                            }}
+                                                        </p>
+                                                        <p
                                                             class="text-sm mt-1 line-clamp-2"
                                                         >
                                                             {{
