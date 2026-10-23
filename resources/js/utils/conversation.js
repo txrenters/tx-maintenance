@@ -70,6 +70,9 @@ export function isAwaitingReply(messages, ourNumber) {
 
     if (!isInboundMessage(last, ourNumber)) return false;
 
+    // A coordinator reply filed under another owner or vendor still answers it.
+    if (last.answered_at) return false;
+
     const tapback = detectTapback(last.message ?? last.messages);
 
     return !tapback || tapback.needsReply;

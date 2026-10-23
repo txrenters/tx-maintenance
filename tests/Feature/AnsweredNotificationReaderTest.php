@@ -113,6 +113,60 @@ class AnsweredNotificationReaderTest extends TestCase
         $this->assertFalse($this->isRead($second));
     }
 
+    public function test_the_backfill_answers_messages_that_already_have_a_reply(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $answered = $this->inbound($workOrder, 'tenant');
+        $this->reply($workOrder, 'tenant');
+        $later = $this->inbound($workOrder, 'tenant');
+        $otherParty = $this->inbound($workOrder, 'owner');
+
+        $stamped = app(AnsweredNotificationReader::class)->backfillAnswered();
+
+        $this->assertSame(1, $stamped);
+        $this->assertNotNull($answered->fresh()->answered_at);
+        $this->assertNull($later->fresh()->answered_at);
+        $this->assertNull($otherParty->fresh()->answered_at);
+    }
+
+    public function test_the_backfill_answers_a_message_whose_reply_was_filed_under_another_tag(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $vendor = Vendor::query()->create(['propertyware_id' => 'V-77', 'name' => 'Ace Plumbing', 'vendor_type' => 'Maintenance', 'is_active' => true, 'user_id' => User::factory()->create()->id]);
+        $untagged = $this->inbound($workOrder, 'vendor');
+        $tagged = $this->inbound($workOrder, 'owner', ['owner_id' => 7]);
+        $this->reply($workOrder, 'vendor', ['vendor_id' => $vendor->id]);
+        $this->reply($workOrder, 'owner');
+
+        app(AnsweredNotificationReader::class)->backfillAnswered();
+
+        $this->assertNotNull($untagged->fresh()->answered_at);
+        $this->assertNotNull($tagged->fresh()->answered_at);
+    }
+
+    public function test_the_backfill_leaves_another_owners_message_waiting(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $first = $this->inbound($workOrder, 'owner', ['owner_id' => 1, 'sender_number' => 'portal']);
+        $second = $this->inbound($workOrder, 'owner', ['owner_id' => 2, 'sender_number' => 'portal']);
+        $this->reply($workOrder, 'owner', ['owner_id' => 1]);
+
+        app(AnsweredNotificationReader::class)->backfillAnswered();
+
+        $this->assertNotNull($first->fresh()->answered_at);
+        $this->assertNull($second->fresh()->answered_at);
+    }
+
+    public function test_the_backfill_keeps_an_existing_answered_at(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $message = $this->inbound($workOrder, 'tenant', ['answered_at' => '2026-10-01 09:00:00']);
+        $this->reply($workOrder, 'tenant');
+
+        $this->assertSame(0, app(AnsweredNotificationReader::class)->backfillAnswered());
+        $this->assertSame('2026-10-01 09:00:00', (string) $message->fresh()->answered_at);
+    }
+
     public function test_an_owner_approval_is_cleared_by_a_reply(): void
     {
         $workOrder = WorkOrder::factory()->create();

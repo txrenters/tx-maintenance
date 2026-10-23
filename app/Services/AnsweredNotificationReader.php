@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Conversation;
 use App\Models\WorkOrder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -70,6 +71,39 @@ class AnsweredNotificationReader
         }
 
         return $marked;
+    }
+
+    /**
+     * Stamp answered_at on every waiting message that already has a reply
+     * after it, matched as answeredInboundIds matches a new reply. For the
+     * messages answered before replies stamped them; it reads every outbound
+     * row as a reply, since older rows do not say who sent them.
+     *
+     * @return int how many messages were stamped
+     */
+    public function backfillAnswered(): int
+    {
+        $ids = DB::table('work_order_conversations as inbound')
+            ->where('inbound.is_read', false)
+            ->whereNull('inbound.answered_at')
+            ->whereExists(fn ($replies) => $replies
+                ->select(DB::raw(1))
+                ->from('work_order_conversations as reply')
+                ->whereColumn('reply.work_order_id', 'inbound.work_order_id')
+                ->whereColumn('reply.conversation_type', 'inbound.conversation_type')
+                ->whereColumn('reply.id', '>', 'inbound.id')
+                ->where('reply.is_read', true)
+                ->where(fn ($owner) => $owner->whereNull('reply.owner_id')->orWhereNull('inbound.owner_id')->orWhereColumn('reply.owner_id', 'inbound.owner_id'))
+                ->where(fn ($vendor) => $vendor->whereNull('reply.vendor_id')->orWhereNull('inbound.vendor_id')->orWhereColumn('reply.vendor_id', 'inbound.vendor_id')))
+            ->pluck('inbound.id');
+
+        foreach ($ids->chunk(1000) as $chunk) {
+            DB::table('work_order_conversations')->whereIn('id', $chunk)->update(['answered_at' => now()]);
+        }
+
+        app(AwaitingReplyCounter::class)->forget();
+
+        return $ids->count();
     }
 
     /**
