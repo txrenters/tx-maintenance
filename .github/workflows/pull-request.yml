@@ -1,0 +1,98 @@
+name: pull request
+
+# Runs before a merge, which here is also a deploy: the deploy workflow only
+# fires on a push to the default branch. Nothing in this file deploys.
+on:
+  pull_request:
+
+# A new push to the same PR supersedes the run in flight. Deliberately not the
+# deploy group, so a PR check never queues behind or holds up a rollout.
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    # MySQL, matching production on the VPS and the txrenter_test database
+    # phpunit.xml names. A throwaway service, never a real database.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: txrenter_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          # The extension list the Azure build already used.
+          extensions: mbstring, bcmath, pdo, pdo_mysql, curl, gd, xml, zip, soap, redis, pcntl, posix, intl
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Feature tests render Inertia pages, which resolve assets through the
+      # Vite manifest; without a build they fail on a missing manifest.
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Run tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: txrenter_test
+          DB_USERNAME: root
+          DB_PASSWORD: ""
+        run: php -d memory_limit=1G artisan test --compact
+
+  # The Dockerfile installs Node through NodeSource rather than setup-node, so
+  # the job above never exercises it. Building the image is the only check that
+  # the production toolchain still installs and runs the asset build.
+  image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # Both runtime targets, explicitly: a plain build stops at the last stage
+      # and skips any stage it does not copy from.
+      - name: Build the app image
+        run: docker build --pull --target app .
+
+      - name: Build the web image
+        run: docker build --target web .

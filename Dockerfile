@@ -21,8 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev libzip-dev libicu-dev libxml2-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" gd zip pdo_mysql bcmath intl soap exif \
+    # The exact patch is pinned so a rebuild cannot reuse a cached layer from
+    # before the October 2026 Node security release (24.22.1); it may rise,
+    # never fall. Node only runs in this stage -- no runtime image ships it.
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get install -y --no-install-recommends nodejs=24.22.1-1nodesource1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
