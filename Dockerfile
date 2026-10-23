@@ -5,8 +5,8 @@
 #   runtime - Alpine. vendor/ is pure PHP and public/build is static, so
 #             nothing compiled in the build stage ships forward.
 #
-# PHP is pinned to 8.5.12 (patch included) so a rebuild cannot drift to a
-# different release.
+# PHP is pinned to 8.5.12 and Node to 26.12.1 (patch included) so a rebuild
+# cannot drift to a different release.
 
 # ---------------------------------------------------------------------------
 # Stage 1: dependencies and frontend assets.
@@ -21,8 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev libzip-dev libicu-dev libxml2-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" gd zip pdo_mysql bcmath intl soap exif \
-    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    && curl -fsSL https://deb.nodesource.com/setup_26.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs=26.12.1-1nodesource1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
