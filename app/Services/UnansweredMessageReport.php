@@ -135,7 +135,7 @@ class UnansweredMessageReport
         $latestPerThread = DB::table('work_order_conversations')
             ->selectRaw('MAX(id) as last_id')
             ->whereIn('work_order_id', Conversation::query()->select('work_order_id'))
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+            ->groupByRaw(Conversation::threadKeySql());
 
         $courtesyIds = $this->courtesyClosers->courtesyIds();
 
@@ -143,6 +143,7 @@ class UnansweredMessageReport
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->where('c.is_read', false)
+            ->whereNull('c.answered_at')
             // A closed work order waits on nobody. NULL-safe: a status-less
             // row keeps counting rather than going silent.
             ->where(fn ($query) => $query
@@ -216,6 +217,7 @@ class UnansweredMessageReport
                 'c.conversation_type',
                 'c.vendor_id',
                 'c.owner_id',
+                DB::raw(Conversation::threadOwnerSql('c').' as thread_owner_id'),
                 'c.message',
                 'c.sender_number',
                 'c.is_mms',
@@ -248,14 +250,14 @@ class UnansweredMessageReport
                     $row->work_order_id,
                     $row->conversation_type ?: 'unknown',
                     $row->vendor_id ?: 0,
-                    $row->owner_id ?: 0,
+                    $row->thread_owner_id ?: 0,
                 ]),
                 'work_order_id' => (int) $row->work_order_id,
                 'work_order_no' => $row->work_order_no,
                 'work_order_description' => Str::limit((string) $row->work_order_description, 120),
                 'conversation_type' => $row->conversation_type,
                 'vendor_id' => $row->vendor_id ? (int) $row->vendor_id : null,
-                'owner_id' => $row->owner_id ? (int) $row->owner_id : null,
+                'owner_id' => $row->thread_owner_id ? (int) $row->thread_owner_id : null,
                 'party' => $this->participants->partyLabel($row->conversation_type),
                 'counterparty' => $this->participants->counterpartyName(
                     $row,

@@ -97,6 +97,11 @@ class ChatbotEventProcessor
                 ImportChatbotMedia::dispatch($conversation->id, $message['media_urls'])->afterCommit();
             }
 
+            // A staff member replied in Chat Support: the thread is answered.
+            if ($new && ! $inbound && ($message['sender'] ?? null) === 'agent') {
+                app(AnsweredNotificationReader::class)->markAnsweredBy($conversation);
+            }
+
             if ($new && $inbound) {
                 activity()->performedOn($conversation)->event('work_order_message_received')
                     ->withProperties(['senderNumber' => $thread->phone, 'receiverNumber' => config('services.chatbot.phone'), 'message' => $conversation->message, 'work_order_id' => $thread->work_order_id])

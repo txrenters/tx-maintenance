@@ -201,8 +201,14 @@ const insertAppointmentTemplate = async () => {
     }
 };
 
+// An owner with no phone on file is answered in their portal instead of by
+// text.
+const repliesInPortal = computed(
+    () => !owner_phone_number.value && !!selectedOwner.value
+);
+
 const sendMessage = ({ text, files }) => {
-    if (!owner_phone_number.value) {
+    if (!owner_phone_number.value && !selectedOwner.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -222,6 +228,10 @@ const sendMessage = ({ text, files }) => {
     formData.append("work_order_id", props.workOrder.id);
     formData.append("conversation_type", "owner");
 
+    if (repliesInPortal.value) {
+        formData.append("owner_id", selectedOwner.value);
+    }
+
     files.forEach((file) => {
         formData.append("images[]", file);
     });
@@ -232,7 +242,9 @@ const sendMessage = ({ text, files }) => {
         onSuccess: () => {
             toast({
                 title: "Success",
-                description: "Message sent. Delivery may take a moment.",
+                description:
+                    page.props.flash?.success ||
+                    "Message sent. Delivery may take a moment.",
             });
             composer.value?.reset();
             emit("update-owner-convo");
@@ -326,6 +338,12 @@ watch(
                     title="Include the country code, e.g. +1"
                     class="h-8 w-[150px] text-xs"
                 />
+                <span
+                    v-if="repliesInPortal"
+                    class="rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                >
+                    No phone: reply goes to their portal
+                </span>
                 <span
                     v-if="woc"
                     class="ml-auto flex min-w-0 items-center gap-1.5 truncate"

@@ -282,12 +282,13 @@ class MessageTriageService
     {
         $latestPerThread = DB::table('work_order_conversations')
             ->selectRaw('MAX(id) as last_id')
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+            ->groupByRaw(Conversation::threadKeySql());
 
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->where('c.is_read', false)
+            ->whereNull('c.answered_at')
             ->where('c.created_at', '>=', now()->subDays(self::WINDOW_DAYS))
             ->where(fn ($query) => $query
                 ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
@@ -295,7 +296,7 @@ class MessageTriageService
             )
             ->where(fn ($query) => $query->where('c.is_mms', false)->orWhereNull('c.is_mms'))
             ->orderBy('c.id')
-            ->get(['c.id', 'c.work_order_id', 'c.conversation_type', 'c.vendor_id', 'c.owner_id', 'c.message'])
+            ->get(['c.id', 'c.work_order_id', 'c.conversation_type', 'c.vendor_id', 'c.owner_id', DB::raw(Conversation::threadOwnerSql('c').' as thread_owner_id'), 'c.message'])
             ->keyBy('id')
             ->map(function (object $row) {
                 $row->text = $this->normalize($row->message);
@@ -352,11 +353,7 @@ class MessageTriageService
                 fn ($query) => $query->where('vendor_id', $row->vendor_id),
                 fn ($query) => $query->whereNull('vendor_id')
             )
-            ->when(
-                $row->owner_id !== null,
-                fn ($query) => $query->where('owner_id', $row->owner_id),
-                fn ($query) => $query->whereNull('owner_id')
-            )
+            ->whereRaw(Conversation::threadOwnerSql().' = ?', [(int) $row->thread_owner_id])
             ->where('id', '<', $row->id)
             ->orderByDesc('id')
             ->limit(self::CONTEXT_MESSAGES)

@@ -7,7 +7,10 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\JobberTextMessage;
+use App\Models\Owner;
+use App\Models\Tenants;
 use App\Models\WorkOrder;
+use App\Services\AnsweredNotificationReader;
 use App\Services\ChatbotHub;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -57,6 +60,33 @@ class ConversationController extends Controller
         }
 
         abort_unless($type === ($user->hasRole('owner') ? 'owner' : 'tenant'), 403);
+    }
+
+    /**
+     * The owner or tenant on this work order a portal-only reply is for, or
+     * null when none was named or the one named is not on the work order.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function portalRecipient(WorkOrder $workOrder, array $data): Owner|Tenants|null
+    {
+        if ($data['conversation_type'] === 'owner') {
+            return filled($data['owner_id'] ?? null)
+                ? $workOrder->owners()->whereKey($data['owner_id'])->first()
+                : null;
+        }
+
+        $tenantId = (int) ($data['tenant_id'] ?? 0);
+
+        if ($tenantId === 0) {
+            return null;
+        }
+
+        if ((int) $workOrder->tenant_id === $tenantId) {
+            return $workOrder->requested_by;
+        }
+
+        return $workOrder->tenants()->whereKey($tenantId)->first();
     }
 
     /**
@@ -220,6 +250,22 @@ class ConversationController extends Controller
         $this->assertCanSendAsParty($validatedData['conversation_type']);
         $messageText = trim($validatedData['text'] ?? '');
         $isVendorMessage = $validatedData['conversation_type'] === 'vendor';
+        $user = auth()->user();
+
+        // An owner or tenant with no phone on file (they write in from the
+        // portal) is answered in the portal: the reply is saved to their
+        // thread, with nothing to text.
+        $portalRecipient = null;
+
+        if (! $receiverNumber && in_array($validatedData['conversation_type'], ['owner', 'tenant'], true) && ! $this->isPortalParty($user)) {
+            $portalRecipient = $this->portalRecipient($workOrder, $validatedData);
+
+            if ($portalRecipient === null) {
+                return redirect()->back()->withErrors([
+                    'message' => 'Please choose who the message is for.',
+                ]);
+            }
+        }
 
         $conversation = Conversation::create([
             'message' => $messageText,
@@ -227,12 +273,20 @@ class ConversationController extends Controller
             'receiver_number' => $receiverNumber,
             'work_order_id' => $validatedData['work_order_id'],
             'vendor_id' => $validatedData['vendor_id'] ?? null,
+            // The owner portal shows a thread message by owner id, so a
+            // multi-owner work order's reply reaches only the owner it is for.
+            'owner_id' => $portalRecipient instanceof Owner ? $portalRecipient->id : null,
             'conversation_type' => $validatedData['conversation_type'],
             'is_read' => true,
             // A coordinator-to-vendor message is unseen by the vendor until they open their portal.
             'read_by_vendor' => ! $isVendorMessage,
             'is_mms' => $hasImages,
         ]);
+
+        // A coordinator replying answers the thread's waiting messages.
+        if (! $this->isPortalParty($user)) {
+            app(AnsweredNotificationReader::class)->markAnsweredBy($conversation);
+        }
 
         // Store all uploaded images and collect their signed URLs
         $mediaUrls = [];
@@ -253,13 +307,15 @@ class ConversationController extends Controller
             }
         }
 
-        $user = auth()->user();
-
         if ($this->isPortalParty($user)) {
             app(ChatbotHub::class)->queueInboundMessage($conversation);
             $this->sendNotification($conversation, $validatedData, $workOrder);
 
             return redirect()->back()->with('success', 'Message sent successfully!');
+        }
+
+        if ($portalRecipient !== null) {
+            return redirect()->back()->with('success', 'Message saved. They will see it in their portal.');
         }
 
         // No phone number on file (e.g. a portal-only vendor): the message is saved

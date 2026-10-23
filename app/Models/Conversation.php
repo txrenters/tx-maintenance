@@ -28,6 +28,40 @@ class Conversation extends Model
     public const PARTY_TYPES = ['tenant', 'owner', 'vendor', 'vendor_tenant', 'vendor_owner'];
 
     /**
+     * The GROUP BY that makes one thread: one work order, one party, one vendor
+     * and one owner (see threadOwnerSql). The Inbox, its badges and the reports
+     * all group on this, so they never disagree on what a thread is.
+     */
+    public static function threadKeySql(string $table = 'work_order_conversations'): string
+    {
+        return "{$table}.work_order_id, COALESCE(NULLIF({$table}.conversation_type, ''), 'unknown'), COALESCE({$table}.vendor_id, 0), "
+            .self::threadOwnerSql($table);
+    }
+
+    /**
+     * The owner a message's thread belongs to, 0 for none.
+     *
+     * Only a work order with more than one owner splits its threads by owner.
+     * On a single-owner work order an untagged message (older rows, texts sent
+     * outside the chatbot hub) and a tagged one are the same conversation, as
+     * the work order's Owner tab already shows them.
+     */
+    public static function threadOwnerSql(string $table = 'work_order_conversations'): string
+    {
+        return '(CASE WHEN (SELECT COUNT(*) FROM work_order_owners AS thread_owners'
+            ." WHERE thread_owners.work_order_id = {$table}.work_order_id) > 1"
+            ." THEN COALESCE({$table}.owner_id, 0) ELSE 0 END)";
+    }
+
+    /**
+     * Limit to the messages of one owner thread, keyed as threadOwnerSql keys it.
+     */
+    public function scopeInOwnerThread(Builder $query, ?int $ownerId): Builder
+    {
+        return $query->whereRaw(self::threadOwnerSql($this->getTable()).' = ?', [(int) $ownerId]);
+    }
+
+    /**
      * Any new or removed message can change which threads are awaiting a reply,
      * so drop the count behind the Messages badge. Hooking the model rather than
      * each caller covers the send endpoint, the inbound webhook and the importer

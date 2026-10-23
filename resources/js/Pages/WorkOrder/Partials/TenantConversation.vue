@@ -123,8 +123,17 @@ watch(selectedTenant, (newTenant) => {
     }
 });
 
+// A tenant with no phone on file is answered in their portal instead of by
+// text: the tenant picked, else the one who requested the work.
+const portalTenantId = computed(
+    () => selectedTenant.value || props.workOrder?.tenant_id || ""
+);
+const repliesInPortal = computed(
+    () => !tenant_phone_number.value && !!portalTenantId.value
+);
+
 const sendMessage = ({ text, files }) => {
-    if (!tenant_phone_number.value) {
+    if (!tenant_phone_number.value && !portalTenantId.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -144,6 +153,10 @@ const sendMessage = ({ text, files }) => {
     formData.append("work_order_id", props.workOrder.id);
     formData.append("conversation_type", "tenant");
 
+    if (repliesInPortal.value) {
+        formData.append("tenant_id", portalTenantId.value);
+    }
+
     files.forEach((file) => {
         formData.append("images[]", file);
     });
@@ -154,7 +167,9 @@ const sendMessage = ({ text, files }) => {
         onSuccess: () => {
             toast({
                 title: "Success",
-                description: "Message sent. Delivery may take a moment.",
+                description:
+                    page.props.flash?.success ||
+                    "Message sent. Delivery may take a moment.",
             });
             composer.value?.reset();
             scrollToBottom(true);
@@ -240,7 +255,10 @@ watch(
                                 >
                                     {{ tenant.first_name }}
                                     {{ tenant.last_name }} -
-                                    {{ tenant?.mobile_phone }}
+                                    {{
+                                        tenant?.mobile_phone ||
+                                        "no phone on file"
+                                    }}
                                 </SelectItem>
                             </template>
                         </SelectGroup>
@@ -252,6 +270,12 @@ watch(
                     title="Include the country code, e.g. +1"
                     class="h-8 w-[150px] text-xs"
                 />
+                <span
+                    v-if="repliesInPortal"
+                    class="rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                >
+                    No phone: reply goes to their portal
+                </span>
                 <span
                     v-if="woc"
                     class="ml-auto flex min-w-0 items-center gap-1.5 truncate"

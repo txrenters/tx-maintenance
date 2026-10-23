@@ -153,11 +153,7 @@ class InboxController extends Controller
                 fn ($query) => $query->where('vendor_id', $validated['vendor_id']),
                 fn ($query) => $query->whereNull('vendor_id')
             )
-            ->when(
-                filled($validated['owner_id'] ?? null),
-                fn ($query) => $query->where('owner_id', $validated['owner_id']),
-                fn ($query) => $query->whereNull('owner_id')
-            )
+            ->inOwnerThread($validated['owner_id'] ?? null)
             ->orderBy('id')
             ->get();
 
@@ -259,9 +255,11 @@ class InboxController extends Controller
                 'c.conversation_type',
                 'c.vendor_id',
                 'c.owner_id',
+                DB::raw(Conversation::threadOwnerSql('c').' as thread_owner_id'),
                 'c.message',
                 'c.sender_number',
                 'c.is_read',
+                'c.answered_at',
                 'c.is_mms',
                 'c.twilio_status',
                 'c.created_at',
@@ -277,6 +275,7 @@ class InboxController extends Controller
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+                    ->whereNull('c.answered_at')
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
                     ->tap(fn ($q) => $this->notClosed($q))
             )
@@ -372,7 +371,7 @@ class InboxController extends Controller
         return DB::table('work_order_conversations')
             ->selectRaw('MAX(id) as last_id')
             ->whereIn('work_order_id', $visibleWorkOrderIds)
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+            ->groupByRaw(Conversation::threadKeySql());
     }
 
     /**
@@ -407,7 +406,7 @@ class InboxController extends Controller
                 ->where('r.user_id', $userId)
                 ->whereRaw("r.conversation_type = COALESCE(NULLIF(c.conversation_type, ''), 'unknown')")
                 ->whereRaw('r.vendor_id = COALESCE(c.vendor_id, 0)')
-                ->whereRaw('r.owner_id = COALESCE(c.owner_id, 0)');
+                ->whereRaw('r.owner_id = '.Conversation::threadOwnerSql('c'));
         };
     }
 
@@ -433,6 +432,7 @@ class InboxController extends Controller
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+                    ->whereNull('c.answered_at')
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
                     ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
                     ->tap(fn ($q) => $this->notClosed($q))
@@ -477,14 +477,14 @@ class InboxController extends Controller
                 $row->work_order_id,
                 $row->conversation_type ?: 'unknown',
                 $row->vendor_id ?: 0,
-                $row->owner_id ?: 0,
+                $row->thread_owner_id ?: 0,
             ]),
             'work_order_id' => (int) $row->work_order_id,
             'work_order_no' => $row->work_order_no,
             'work_order_description' => $row->work_order_description,
             'conversation_type' => $row->conversation_type,
             'vendor_id' => $row->vendor_id ? (int) $row->vendor_id : null,
-            'owner_id' => $row->owner_id ? (int) $row->owner_id : null,
+            'owner_id' => $row->thread_owner_id ? (int) $row->thread_owner_id : null,
             'party' => $this->participants->partyLabel($row->conversation_type),
             'counterparty' => $this->participants->counterpartyName($row, $workOrder),
             'preview' => $this->preview($row),
@@ -492,15 +492,18 @@ class InboxController extends Controller
             'waiting_hours' => (int) Carbon::parse($row->created_at)->diffInHours($now),
             // is_read is the de facto direction column (see BoardSummaryService):
             // 0 means the message came in from the outside and nobody replied.
-            // A judged courtesy closer ("thank you") no longer waits on anyone,
+            // A staff reply filed under another owner or vendor still answers
+            // it (answered_at, see AnsweredNotificationReader). A judged courtesy closer ("thank you") no longer waits on anyone,
             // and neither does a thread on a closed work order (NULL-safe: a
             // status-less row keeps counting).
             'awaiting' => ! $row->is_read
+                && $row->answered_at === null
                 && ! in_array((int) $row->id, $courtesyIds, true)
                 && ! in_array((string) ($row->work_order_status ?? ''), WorkOrder::CLOSED_STATUSES, true),
             // Unread is personal: the newest message is inbound AND this staff
             // user has not opened the thread since it arrived.
             'unread' => ! $row->is_read
+                && $row->answered_at === null
                 && ($row->last_read_id === null || (int) $row->id > (int) $row->last_read_id),
             'twilio_status' => $row->twilio_status,
         ];
