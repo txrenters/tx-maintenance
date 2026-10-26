@@ -80,11 +80,11 @@ watch(selectedOwner, (newOwner) => {
     }
 });
 
-// Only one owner on the work order: there's no choice to make, so pick them.
+// Preselect the first owner on the work order.
 watch(
     () => props.workOrderOwners,
     (owners) => {
-        if (!selectedOwner.value && owners?.length === 1) {
+        if (!selectedOwner.value && owners?.length) {
             selectedOwner.value = String(owners[0].id);
         }
     },
@@ -342,7 +342,6 @@ watch(
                 </Select>
                 <Input
                     v-model="owner_phone_number"
-                    placeholder="+1 214 555 0134"
                     title="Include the country code, e.g. +1"
                     class="h-8 w-[150px] text-xs"
                 />

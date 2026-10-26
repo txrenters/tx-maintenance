@@ -123,29 +123,13 @@ watch(selectedTenant, (newTenant) => {
     }
 });
 
-// Preselect a tenant from the lease roster: the only one, else the Requested
-// By contact when they're on it. Requested By alone is often the owner, staff
-// or a technician, so their number is never used unless they're a tenant here.
+// Preselect the first tenant on the work order. Never the Requested By
+// contact's number: that is often the owner, staff or a technician.
 watch(
     () => props.workOrderTenants,
     (tenants) => {
-        if (selectedTenant.value || !tenants?.length) {
-            return;
-        }
-
-        const requester = props.workOrder?.requested;
-        const match =
-            tenants.length === 1
-                ? tenants[0]
-                : tenants.find(
-                      (tenant) =>
-                          tenant.id == requester?.id ||
-                          (!!requester?.mobile_phone &&
-                              tenant.mobile_phone === requester.mobile_phone)
-                  );
-
-        if (match) {
-            selectedTenant.value = String(match.id);
+        if (!selectedTenant.value && tenants?.length) {
+            selectedTenant.value = String(tenants[0].id);
         }
     },
     { immediate: true }
@@ -288,7 +272,6 @@ watch(
                 </Select>
                 <Input
                     v-model="tenant_phone_number"
-                    placeholder="+1 214 555 0134"
                     title="Include the country code, e.g. +1"
                     class="h-8 w-[150px] text-xs"
                 />
