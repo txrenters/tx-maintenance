@@ -104,7 +104,9 @@ class WorkOrderController extends Controller
     {
         return [
             $prefix.'service_status:id,name',
-            $prefix.'building:id,propertyware_id,name',
+            // Coordinates ride along for the board map (Lawn Service first):
+            // two decimals per card, filled by geocode:buildings.
+            $prefix.'building:id,propertyware_id,name,latitude,longitude',
             $prefix.'requested_by:id,first_name,last_name',
             $prefix.'tasks:id,work_order_id,status,due_date',
             $prefix.'vendors' => fn ($q) => $q->select('vendors.id', 'vendors.name'),

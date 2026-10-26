@@ -6,6 +6,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
+import LawnServiceMap from "./Partials/LawnServiceMap.vue";
 import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
 import { statusList } from "@/utils/serviceStatusList";
 import { agoLabel } from "@/utils/conversation.js";
@@ -1387,6 +1388,8 @@ const date_range = ref({
                 :date-range="date_range"
                 @showWorkOrder="handleWorkOrder"
             />
+            <!-- The corner mini map; click for the full map (John Carlo, 2026-10-27). -->
+            <LawnServiceMap :service-status="service_status" @open="handleWorkOrder" />
         </Deferred>
         <ScrollBar orientation="horizontal" />
     </ScrollArea>

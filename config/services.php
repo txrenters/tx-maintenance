@@ -371,6 +371,13 @@ return [
         'first_work_order_no' => (int) env('CRYSTAL_CREEK_FIRST_WORK_ORDER_NO', 1),
     ],
 
+    'census' => [
+        // Free, keyless US Census Bureau geocoder used by geocode:buildings
+        // to resolve building addresses to coordinates for the board maps.
+        'geocoder_url' => env('CENSUS_GEOCODER_URL', 'https://geocoding.geo.census.gov/geocoder'),
+        'benchmark' => env('CENSUS_GEOCODER_BENCHMARK', 'Public_AR_Current'),
+    ],
+
     'inbox' => [
         // AI filter that drops pure courtesy closers ("thank you", "ok
         // great") out of the awaiting-reply badge, Inbox counts, board
