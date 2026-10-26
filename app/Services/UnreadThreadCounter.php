@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Conversation;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -59,7 +60,7 @@ class UnreadThreadCounter
         // and InboxThreadRead use.
         $latestPerThread = DB::table('work_order_conversations')
             ->selectRaw('MAX(id) as last_id')
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+            ->groupByRaw(Conversation::threadKeySql());
 
         $courtesyIds = $this->courtesyClosers->courtesyIds();
 
@@ -71,9 +72,10 @@ class UnreadThreadCounter
                     ->where('r.user_id', $userId)
                     ->whereRaw("r.conversation_type = COALESCE(NULLIF(c.conversation_type, ''), 'unknown')")
                     ->whereRaw('r.vendor_id = COALESCE(c.vendor_id, 0)')
-                    ->whereRaw('r.owner_id = COALESCE(c.owner_id, 0)');
+                    ->whereRaw('r.owner_id = '.Conversation::threadOwnerSql('c'));
             })
             ->where('c.is_read', false)
+            ->whereNull('c.answered_at')
             // A closed work order has nothing new worth a badge. NULL-safe: a
             // status-less row keeps counting rather than going silent.
             ->where(fn ($query) => $query

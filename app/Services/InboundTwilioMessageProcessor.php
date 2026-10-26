@@ -526,13 +526,19 @@ class InboundTwilioMessageProcessor
     /**
      * Infer the thread from the work order's own parties, for a referenced work
      * order that has no conversation history matching this number yet.
+     *
+     * PropertyWare's Requested By contact is whoever raised the work order —
+     * often the owner — so it only outranks the owners when it is a tenant on
+     * the lease. Otherwise an owner who raised the work order was filed on the
+     * Tenant thread.
      */
     protected function matchByPartyOnWorkOrder(WorkOrder $workOrder, string $fromDigits): ?string
     {
         $tenant = $workOrder->requested_by;
         $tenantNumber = filled($tenant?->mobile_phone) ? $tenant->mobile_phone : $tenant?->home_phone;
+        $isRequester = $tenantNumber && Conversation::lastTenDigits((string) $tenantNumber) === $fromDigits;
 
-        if ($tenantNumber && Conversation::lastTenDigits((string) $tenantNumber) === $fromDigits) {
+        if ($isRequester && $workOrder->requesterIsLeaseTenant()) {
             return 'tenant';
         }
 
@@ -540,6 +546,10 @@ class InboundTwilioMessageProcessor
             if (Conversation::lastTenDigits($workOrder->normalizedOwnerPhone($owner)) === $fromDigits) {
                 return 'owner';
             }
+        }
+
+        if ($isRequester) {
+            return 'tenant';
         }
 
         foreach ($workOrder->vendors as $vendor) {

@@ -41,7 +41,7 @@ const refSuffix = computed(() => {
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
 const selectedTenant = ref("");
-const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
+const tenant_phone_number = ref("");
 
 // THMP (in-house) jobs are excluded from the automated tenant assignment
 // message — THMP staff message the tenant manually. This one-click button fills
@@ -123,8 +123,29 @@ watch(selectedTenant, (newTenant) => {
     }
 });
 
+// Preselect the first tenant on the work order. Never the Requested By
+// contact's number: that is often the owner, staff or a technician.
+watch(
+    () => props.workOrderTenants,
+    (tenants) => {
+        if (!selectedTenant.value && tenants?.length) {
+            selectedTenant.value = String(tenants[0].id);
+        }
+    },
+    { immediate: true }
+);
+
+// A tenant with no phone on file is answered in their portal instead of by
+// text: the tenant picked, else the one who requested the work.
+const portalTenantId = computed(
+    () => selectedTenant.value || props.workOrder?.tenant_id || ""
+);
+const repliesInPortal = computed(
+    () => !tenant_phone_number.value && !!portalTenantId.value
+);
+
 const sendMessage = ({ text, files }) => {
-    if (!tenant_phone_number.value) {
+    if (!tenant_phone_number.value && !portalTenantId.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -144,6 +165,10 @@ const sendMessage = ({ text, files }) => {
     formData.append("work_order_id", props.workOrder.id);
     formData.append("conversation_type", "tenant");
 
+    if (repliesInPortal.value) {
+        formData.append("tenant_id", portalTenantId.value);
+    }
+
     files.forEach((file) => {
         formData.append("images[]", file);
     });
@@ -154,7 +179,9 @@ const sendMessage = ({ text, files }) => {
         onSuccess: () => {
             toast({
                 title: "Success",
-                description: "Message sent. Delivery may take a moment.",
+                description:
+                    page.props.flash?.success ||
+                    "Message sent. Delivery may take a moment.",
             });
             composer.value?.reset();
             scrollToBottom(true);
@@ -231,16 +258,13 @@ watch(
                                 v-for="tenant in workOrderTenants"
                                 :key="tenant.id"
                             >
-                                <SelectItem
-                                    :value="String(tenant.id)"
-                                    :selected="
-                                        tenant.mobile_phone ===
-                                        workOrder.requested?.mobile_phone
-                                    "
-                                >
+                                <SelectItem :value="String(tenant.id)">
                                     {{ tenant.first_name }}
                                     {{ tenant.last_name }} -
-                                    {{ tenant?.mobile_phone }}
+                                    {{
+                                        tenant?.mobile_phone ||
+                                        "no phone on file"
+                                    }}
                                 </SelectItem>
                             </template>
                         </SelectGroup>
@@ -248,10 +272,15 @@ watch(
                 </Select>
                 <Input
                     v-model="tenant_phone_number"
-                    placeholder="+1 214 555 0134"
                     title="Include the country code, e.g. +1"
                     class="h-8 w-[150px] text-xs"
                 />
+                <span
+                    v-if="repliesInPortal"
+                    class="rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                >
+                    No phone: reply goes to their portal
+                </span>
                 <span
                     v-if="woc"
                     class="ml-auto flex min-w-0 items-center gap-1.5 truncate"

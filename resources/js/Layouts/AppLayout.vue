@@ -871,6 +871,9 @@ const quickMessageCount = computed(() => displayMessage.value.length);
 const conversations = ref([]);
 const receiver_number = ref("");
 const sender_number = ref("");
+// Who the outside number belongs to ("Owner" / "Yen Nguyen"), from the bell
+// entry the modal was opened from.
+const receiver_party = ref(null);
 const conversation_type = ref("");
 const reference_id = ref("");
 const notif = ref(null);
@@ -894,7 +897,13 @@ const openNotificationTarget = (notification) => {
     }
 };
 
-const handleChatModal = async (model, shouldReverse = true) => {
+// party is the bell entry's sender; left out on a refresh after sending, so
+// the name stays.
+const handleChatModal = async (model, shouldReverse = true, party = undefined) => {
+    if (party !== undefined) {
+        receiver_party.value = party;
+    }
+
     const response = await axios.post(route("work_order.notification_messages"), {
         data: model,
     });
@@ -1729,9 +1738,7 @@ onUnmounted(() => {
                                                                     'message_undelivered',
                                                             'bg-yellow-500':
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded',
+                                                                'uploaded',
                                                             'bg-orange-500':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
@@ -1758,9 +1765,7 @@ onUnmounted(() => {
                                                                     'message_undelivered',
                                                             'bg-yellow-100 text-yellow-600':
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded',
+                                                                'uploaded',
                                                             'bg-orange-100 text-orange-600':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
@@ -1796,9 +1801,7 @@ onUnmounted(() => {
                                                             class="w-4 h-4"
                                                             v-else-if="
                                                                 notification.event ===
-                                                                    'invoice_uploaded' ||
-                                                                notification.event ===
-                                                                    'uploaded'
+                                                                'uploaded'
                                                             "
                                                         />
                                                         <FilePenIcon
@@ -1829,6 +1832,24 @@ onUnmounted(() => {
                                                                 notification.title
                                                             }}
                                                         </h4>
+                                                        <p
+                                                            v-if="
+                                                                notification.sender
+                                                            "
+                                                            class="text-xs font-medium text-muted-foreground mt-0.5"
+                                                        >
+                                                            {{
+                                                                notification
+                                                                    .sender
+                                                                    .role
+                                                            }}
+                                                            ·
+                                                            {{
+                                                                notification
+                                                                    .sender
+                                                                    .name
+                                                            }}
+                                                        </p>
                                                         <p
                                                             class="text-sm mt-1 line-clamp-2"
                                                         >
@@ -1948,6 +1969,8 @@ onUnmounted(() => {
                                                                     @click.prevent="
                                                                         handleChatModal(
                                                                             notification.subject,
+                                                                            true,
+                                                                            notification.sender,
                                                                         )
                                                                     "
                                                                 >
@@ -2205,7 +2228,7 @@ onUnmounted(() => {
                         variant="outline"
                         @click.prevent="
                             openFailedModal = false;
-                            handleChatModal(failedNotification.subject, false);
+                            handleChatModal(failedNotification.subject, false, null);
                         "
                     >
                         View Conversation
@@ -2237,6 +2260,12 @@ onUnmounted(() => {
                 <div class="flex justify-between gap-2 mb-2">
                     <div class="flex flex-col text-left">
                         <p>Receiver:</p>
+                        <p v-if="receiver_party" class="font-semibold">
+                            {{ receiver_party.name }}
+                            <span class="text-sm font-normal text-muted-foreground">
+                                ({{ receiver_party.role }})
+                            </span>
+                        </p>
                         {{ receiver_number }}
                     </div>
 

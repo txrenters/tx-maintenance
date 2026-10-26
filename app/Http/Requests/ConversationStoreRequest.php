@@ -31,6 +31,10 @@ class ConversationStoreRequest extends FormRequest
             'sender_phone_number' => 'nullable|string',
             'receiver_phone_number' => 'nullable|string',
             'vendor_id' => 'nullable|integer|exists:vendors,id',
+            // Who a portal-only reply is for, when the owner or tenant has no
+            // phone to text: it is shown in their portal.
+            'owner_id' => 'nullable|integer|exists:owners,id',
+            'tenant_id' => 'nullable|integer|exists:tenants,id',
             'conversation_type' => ['required', 'string', Rule::in(Conversation::PARTY_TYPES)],
             'images' => 'nullable|array|max:10',
             // Any image or video plus PDFs are accepted. Recipients receive the

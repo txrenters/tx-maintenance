@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Owner;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AnsweredNotificationReader;
+use App\Services\AwaitingReplyCounter;
+use App\Services\UnreadThreadCounter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -169,6 +173,111 @@ class InboxTest extends TestCase
             ['Tenant', 'Owner'],
             $threads->pluck('party')->all(),
         );
+    }
+
+    /**
+     * Older messages and texts sent outside the chatbot hub carry no owner_id,
+     * newer ones do. On a work order with one owner they are one conversation —
+     * the work order's Owner tab shows them together, and so must the Inbox
+     * (WO 40667 had split into an answered thread and a stale "awaiting" one).
+     */
+    public function test_a_single_owner_work_order_keeps_tagged_and_untagged_owner_messages_in_one_thread(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $owner = Owner::factory()->create();
+        $workOrder->owners()->attach($owner->id);
+
+        $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner']);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'message' => 'Where can i see the photos?']);
+        $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner', 'owner_id' => $owner->id]);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'owner_id' => $owner->id]);
+        $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner', 'owner_id' => $owner->id]);
+
+        $user = $this->staffUser();
+        $threads = $this->actingAs($user)->get(route('inbox.index'))->viewData('page')['props']['threads'];
+
+        $this->assertCount(1, $threads);
+        $this->assertNull($threads[0]['owner_id']);
+        $this->assertFalse($threads[0]['awaiting']);
+
+        $this->actingAs($user)->getJson(route('inbox.thread', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'owner_id' => $threads[0]['owner_id'],
+        ]))->assertOk()->assertJsonCount(5, 'messages');
+
+        $this->assertSame(0, app(AwaitingReplyCounter::class)->count());
+        $this->assertSame(0, app(UnreadThreadCounter::class)->countFor($user->id));
+    }
+
+    public function test_each_owner_on_a_multi_owner_work_order_keeps_their_own_thread(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $first = Owner::factory()->create();
+        $second = Owner::factory()->create();
+        $workOrder->owners()->attach([$first->id, $second->id]);
+
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'owner_id' => $first->id]);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'owner_id' => $second->id]);
+
+        $user = $this->staffUser();
+        $threads = collect($this->actingAs($user)->get(route('inbox.index'))->viewData('page')['props']['threads']);
+
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], $threads->pluck('owner_id')->all());
+
+        $this->actingAs($user)->getJson(route('inbox.thread', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'owner_id' => $first->id,
+        ]))->assertOk()->assertJsonCount(1, 'messages');
+    }
+
+    /**
+     * A coordinator's text from the work order page carries no owner_id, so on
+     * a multi-owner work order it lands in a different thread than the owner's
+     * question. The question is answered all the same.
+     */
+    public function test_a_message_a_staff_reply_answered_reads_as_read_and_answered(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $first = Owner::factory()->create();
+        $second = Owner::factory()->create();
+        $workOrder->owners()->attach([$first->id, $second->id]);
+
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'owner_id' => $first->id]);
+        $reply = $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner']);
+        app(AnsweredNotificationReader::class)->markAnsweredBy($reply);
+
+        $user = $this->staffUser();
+        $threads = collect($this->actingAs($user)->get(route('inbox.index'))->viewData('page')['props']['threads']);
+        $question = $threads->firstWhere('owner_id', $first->id);
+
+        $this->assertFalse($question['unread']);
+        $this->assertFalse($question['awaiting']);
+        $this->assertSame(0, app(UnreadThreadCounter::class)->countFor($user->id));
+        $this->assertSame(0, app(AwaitingReplyCounter::class)->count());
+
+        $unreadFilter = $this->actingAs($user)->get(route('inbox.index', ['status' => 'unread']))->viewData('page')['props']['threads'];
+        $this->assertCount(0, $unreadFilter);
+    }
+
+    public function test_an_automated_text_does_not_answer_the_message_before_it(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $first = Owner::factory()->create();
+        $second = Owner::factory()->create();
+        $workOrder->owners()->attach([$first->id, $second->id]);
+
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner', 'owner_id' => $first->id]);
+        // Sent by an automation: nothing calls AnsweredNotificationReader.
+        $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner']);
+
+        $user = $this->staffUser();
+        $threads = collect($this->actingAs($user)->get(route('inbox.index'))->viewData('page')['props']['threads']);
+        $question = $threads->firstWhere('owner_id', $first->id);
+
+        $this->assertTrue($question['unread']);
+        $this->assertTrue($question['awaiting']);
     }
 
     public function test_two_vendors_on_one_work_order_are_separate_threads(): void

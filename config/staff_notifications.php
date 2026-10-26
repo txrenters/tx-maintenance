@@ -75,7 +75,6 @@ return [
         // A vendor saved an estimate on the Vendor Edit tab: the assigned
         // coordinator picks it up from the bell; the vendor side is never re-told.
         'vendor_estimate_submitted' => ['audience' => 'assigned', 'priority' => 'normal'],
-        'invoice_uploaded' => ['audience' => 'assigned', 'priority' => 'normal'],
         'hoa_violation_photos_by_text' => ['audience' => 'assigned', 'priority' => 'normal'],
         'owner_data_audit' => ['audience' => 'admin', 'priority' => 'normal'],
     ],
