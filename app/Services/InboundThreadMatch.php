@@ -14,7 +14,7 @@ namespace App\Services;
 final class InboundThreadMatch
 {
     /**
-     * @param  string  $strategy  Which resolution tier won: ref, ref_party, open_outbound, any_outbound, either_direction, legacy_exact.
+     * @param  string  $strategy  Which resolution tier won: ref, ref_party, open_outbound, any_outbound, either_direction, legacy_exact; suffixed _owner when the sender is one of the work order's owners and the thread was moved to Owner.
      * @param  array<int, int>  $candidateWorkOrderIds  Every work order the phone pair could have meant; more than one means the routing was a judgement call.
      */
     public function __construct(

@@ -412,11 +412,53 @@ class InboundTwilioMessageProcessor
             return null;
         }
 
+        if ($match && $fromDigits !== null) {
+            $match = $this->preferOwnerThread($match, $fromDigits);
+        }
+
         if ($match) {
             Log::info('Inbound SMS routed to work-order thread', $match->logContext() + [
                 'from' => $from,
                 'to' => $to,
             ]);
+        }
+
+        return $match;
+    }
+
+    /**
+     * A text from a number the work order lists as an owner's files under Owner,
+     * whatever thread we last used to text that number.
+     *
+     * The history tiers inherit the conversation type of our newest outbound
+     * on the phone pair. That is the right guess for a stranger's number, but
+     * it also repeats a mistake forever: the Tenant tab once prefilled the
+     * Requested By contact's number, often the owner's, so one "Thank you."
+     * sent from there filed every later text the owner sent under Tenant
+     * (WO #44253, 2026-10-26). The work order is still the one history chose;
+     * only the thread moves.
+     */
+    protected function preferOwnerThread(InboundThreadMatch $match, string $fromDigits): InboundThreadMatch
+    {
+        if ($match->conversationType === 'owner') {
+            return $match;
+        }
+
+        $workOrder = WorkOrder::query()->with('owners')->find($match->workOrderId);
+
+        if (! $workOrder) {
+            return $match;
+        }
+
+        foreach ($workOrder->owners as $owner) {
+            if (Conversation::lastTenDigits($workOrder->normalizedOwnerPhone($owner)) === $fromDigits) {
+                return new InboundThreadMatch(
+                    workOrderId: $match->workOrderId,
+                    conversationType: 'owner',
+                    strategy: $match->strategy.'_owner',
+                    candidateWorkOrderIds: $match->candidateWorkOrderIds,
+                );
+            }
         }
 
         return $match;

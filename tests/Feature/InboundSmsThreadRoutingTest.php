@@ -35,6 +35,8 @@ class InboundSmsThreadRoutingTest extends TestCase
 
     private const VENDOR_PHONE = '+15559990000';
 
+    private const OWNER_PHONE = '+16626171790';
+
     private const TWILIO_PHONE = '+12816999281';
 
     protected function setUp(): void
@@ -318,6 +320,73 @@ class InboundSmsThreadRoutingTest extends TestCase
 
         $this->assertSame($workOrder->id, (int) $stored->work_order_id);
         $this->assertSame('owner', $stored->conversation_type);
+    }
+
+    public function test_an_owners_text_lands_on_the_owner_thread_even_after_we_texted_them_from_the_tenant_tab(): void
+    {
+        // WO #44253, 2026-10-26: the owner raised the work order, so the Tenant
+        // tab offered their number and staff said "Thank you." from it. Every
+        // text the owner sent after that inherited the tenant thread. A number
+        // we know belongs to the owner files under Owner whatever we last sent.
+        $requester = Tenants::factory()->create(['mobile_phone' => self::OWNER_PHONE]);
+        $owner = Owner::factory()->create(['phone' => self::OWNER_PHONE, 'mobile' => null]);
+        $workOrder = $this->seedWorkOrder(['tenant_id' => $requester->id]);
+        $workOrder->owners()->attach($owner->id);
+        $this->seedOutbound($workOrder, 'tenant', self::OWNER_PHONE, now()->subWeeks(2));
+
+        $this->postInbound('I would like to schedule a roof replacement for the house.', 'SM_route_17', self::OWNER_PHONE)->assertNoContent();
+
+        $stored = $this->storedMessage('SM_route_17');
+
+        $this->assertSame($workOrder->id, (int) $stored->work_order_id);
+        $this->assertSame('owner', $stored->conversation_type);
+    }
+
+    public function test_a_ref_reply_from_an_owner_lands_on_the_owner_thread_despite_tenant_history(): void
+    {
+        $owner = Owner::factory()->create(['phone' => self::OWNER_PHONE, 'mobile' => null]);
+        $workOrder = $this->seedWorkOrder();
+        $workOrder->owners()->attach($owner->id);
+        $this->seedOutbound($workOrder, 'tenant', self::OWNER_PHONE, now()->subDay());
+
+        $this->postInbound("Next Tuesday works (Ref: WO#{$workOrder->work_order_no})", 'SM_route_18', self::OWNER_PHONE)->assertNoContent();
+
+        $stored = $this->storedMessage('SM_route_18');
+
+        $this->assertSame($workOrder->id, (int) $stored->work_order_id);
+        $this->assertSame('owner', $stored->conversation_type);
+    }
+
+    public function test_an_owner_texting_about_their_newest_work_order_still_follows_recency(): void
+    {
+        // The owner's identity fixes the thread, never the work order: the
+        // work order is still the one we most recently texted them about.
+        $owner = Owner::factory()->create(['phone' => self::OWNER_PHONE, 'mobile' => null]);
+        $older = $this->seedWorkOrder();
+        $newer = $this->seedWorkOrder();
+        $older->owners()->attach($owner->id);
+        $newer->owners()->attach($owner->id);
+        $this->seedOutbound($older, 'owner', self::OWNER_PHONE, now()->subDays(3));
+        $this->seedOutbound($newer, 'tenant', self::OWNER_PHONE, now()->subHour());
+
+        $this->postInbound('Approved, go ahead', 'SM_route_19', self::OWNER_PHONE)->assertNoContent();
+
+        $stored = $this->storedMessage('SM_route_19');
+
+        $this->assertSame($newer->id, (int) $stored->work_order_id);
+        $this->assertSame('owner', $stored->conversation_type);
+    }
+
+    public function test_a_tenant_reply_keeps_the_tenant_thread_when_the_owner_has_a_different_number(): void
+    {
+        $owner = Owner::factory()->create(['phone' => self::OWNER_PHONE, 'mobile' => null]);
+        $workOrder = $this->seedWorkOrder();
+        $workOrder->owners()->attach($owner->id);
+        $this->seedOutbound($workOrder, 'tenant', self::TENANT_PHONE, now()->subHour());
+
+        $this->postInbound('Tuesday is fine', 'SM_route_20')->assertNoContent();
+
+        $this->assertSame('tenant', $this->storedMessage('SM_route_20')->conversation_type);
     }
 
     /**
