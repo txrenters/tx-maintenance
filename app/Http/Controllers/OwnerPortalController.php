@@ -12,6 +12,7 @@ use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
 use App\Services\ChatbotHub;
+use App\Services\OwnerApprovalThanksService;
 use App\Services\PropertyWareService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -371,6 +372,10 @@ class OwnerPortalController extends Controller
             // their answer. Approvals only — see pushApprovalToPropertyWare.
             if ($approved) {
                 $this->pushApprovalToPropertyWare($workOrder, $ownerName);
+
+                // The business's thank-you, which also answers the approval
+                // in the Inbox. Gated and log-never-throw inside.
+                app(OwnerApprovalThanksService::class)->thank($workOrder, $owner, $conversation);
             }
 
             return back()->with('success', $approved

@@ -141,6 +141,8 @@ class OwnerPortalApprovalTest extends TestCase
             ->withoutGlobalScopes()
             ->where('work_order_id', $workOrder->id)
             ->where('conversation_type', 'owner')
+            // The owner's own row: the automated thank-you now follows it.
+            ->where('is_read', false)
             ->latest('id')
             ->first();
 

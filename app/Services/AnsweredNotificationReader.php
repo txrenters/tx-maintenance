@@ -17,7 +17,10 @@ use Spatie\Activitylog\Models\Activity;
  * A bell entry otherwise stays unread until someone clicks it, even after the
  * message was answered elsewhere. Only the thread's earlier inbound messages
  * (and owner approve/disapprove clicks) are cleared; automated texts never
- * call this, so a message nobody answered stays unread.
+ * call this, so a message nobody answered stays unread. The one
+ * exception is answerDecisionsBefore(): an owner's portal decision is acted
+ * on, not answered, so any later outbound owner message on the work order,
+ * automated or not, stamps it answered without touching the bell.
  */
 class AnsweredNotificationReader
 {
@@ -71,6 +74,98 @@ class AnsweredNotificationReader
         }
 
         return $marked;
+    }
+
+    /**
+     * An owner's portal decision ("Approved." / "Not approved.") is acted on,
+     * not answered: once any later owner message leaves on that work order,
+     * to any of its owners, from staff or an automation, the decision no
+     * longer waits on anyone. Stamps the work order's earlier decisions as
+     * answered, leaving their bell entries alone so the coordinator still
+     * sees who decided what (business, 2026-10-27; WO #44435's "Approved."
+     * sat under Awaiting reply while the vendor-assignment text went to the
+     * co-owner). Called from Conversation::booted for every new row.
+     */
+    public function answerDecisionsBefore(Conversation $outbound): void
+    {
+        if ($outbound->conversation_type !== 'owner' || ! $outbound->is_read) {
+            return;
+        }
+
+        $decisionIds = $this->decisionConversationIds($outbound->work_order_id);
+
+        if ($decisionIds->isEmpty()) {
+            return;
+        }
+
+        $stamped = Conversation::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', $decisionIds)
+            ->where('id', '<', $outbound->id)
+            ->whereNull('answered_at')
+            ->update(['answered_at' => now()]);
+
+        if ($stamped > 0) {
+            app(AwaitingReplyCounter::class)->forget();
+        }
+    }
+
+    /**
+     * One-time cleanup for the decisions made before answerDecisionsBefore
+     * existed: every portal decision that has a later owner message on its
+     * work order is stamped answered. A database update and nothing else: no
+     * text, no email, no bell change, whatever the work order's state.
+     *
+     * @return int how many decisions were stamped
+     */
+    public function backfillAnsweredDecisions(): int
+    {
+        $decisionIds = $this->decisionConversationIds();
+
+        if ($decisionIds->isEmpty()) {
+            return 0;
+        }
+
+        $ids = DB::table('work_order_conversations as decision')
+            ->whereIn('decision.id', $decisionIds)
+            ->whereNull('decision.answered_at')
+            ->whereExists(fn ($replies) => $replies
+                ->select(DB::raw(1))
+                ->from('work_order_conversations as reply')
+                ->whereColumn('reply.work_order_id', 'decision.work_order_id')
+                ->where('reply.conversation_type', 'owner')
+                ->where('reply.is_read', true)
+                ->whereColumn('reply.id', '>', 'decision.id'))
+            ->pluck('decision.id');
+
+        foreach ($ids->chunk(1000) as $chunk) {
+            DB::table('work_order_conversations')->whereIn('id', $chunk)->update(['answered_at' => now()]);
+        }
+
+        app(AwaitingReplyCounter::class)->forget();
+
+        return $ids->count();
+    }
+
+    /**
+     * The conversation rows the owner portal wrote for approve/disapprove
+     * clicks, from the bell entries that record them; every work order when
+     * none is given.
+     *
+     * @return Collection<int, int>
+     */
+    private function decisionConversationIds(?int $workOrderId = null): Collection
+    {
+        return Activity::query()
+            ->where('event', 'owner_portal_approval')
+            ->when($workOrderId !== null, fn ($query) => $query
+                ->where('subject_type', (new WorkOrder)->getMorphClass())
+                ->where('subject_id', $workOrderId))
+            ->get(['properties'])
+            ->map(fn (Activity $activity): int => (int) ($activity->properties['conversation_id'] ?? 0))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     /**

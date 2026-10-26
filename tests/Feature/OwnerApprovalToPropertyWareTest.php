@@ -250,6 +250,8 @@ class OwnerApprovalToPropertyWareTest extends TestCase
         $conversation = Conversation::query()
             ->withoutGlobalScopes()
             ->where('work_order_id', $workOrder->id)
+            // The owner's own row: the automated thank-you now follows it.
+            ->where('is_read', false)
             ->latest('id')
             ->first();
 
