@@ -80,6 +80,17 @@ watch(selectedOwner, (newOwner) => {
     }
 });
 
+// Only one owner on the work order: there's no choice to make, so pick them.
+watch(
+    () => props.workOrderOwners,
+    (owners) => {
+        if (!selectedOwner.value && owners?.length === 1) {
+            selectedOwner.value = String(owners[0].id);
+        }
+    },
+    { immediate: true }
+);
+
 const loading = ref(false);
 
 // Manual counterpart of the automated owner appointment text (gated off in
@@ -320,10 +331,7 @@ watch(
                                 v-for="owner in workOrderOwners"
                                 :key="owner.id"
                             >
-                                <SelectItem
-                                    :value="String(owner.id)"
-                                    :selected="owner.phone"
-                                >
+                                <SelectItem :value="String(owner.id)">
                                     {{ owner.first_name }}
                                     {{ owner.last_name }} -
                                     {{ owner?.phone || "no phone on file" }}

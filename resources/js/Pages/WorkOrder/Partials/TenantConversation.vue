@@ -41,7 +41,7 @@ const refSuffix = computed(() => {
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
 const selectedTenant = ref("");
-const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
+const tenant_phone_number = ref("");
 
 // THMP (in-house) jobs are excluded from the automated tenant assignment
 // message — THMP staff message the tenant manually. This one-click button fills
@@ -122,6 +122,34 @@ watch(selectedTenant, (newTenant) => {
         tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
     }
 });
+
+// Preselect a tenant from the lease roster: the only one, else the Requested
+// By contact when they're on it. Requested By alone is often the owner, staff
+// or a technician, so their number is never used unless they're a tenant here.
+watch(
+    () => props.workOrderTenants,
+    (tenants) => {
+        if (selectedTenant.value || !tenants?.length) {
+            return;
+        }
+
+        const requester = props.workOrder?.requested;
+        const match =
+            tenants.length === 1
+                ? tenants[0]
+                : tenants.find(
+                      (tenant) =>
+                          tenant.id == requester?.id ||
+                          (!!requester?.mobile_phone &&
+                              tenant.mobile_phone === requester.mobile_phone)
+                  );
+
+        if (match) {
+            selectedTenant.value = String(match.id);
+        }
+    },
+    { immediate: true }
+);
 
 // A tenant with no phone on file is answered in their portal instead of by
 // text: the tenant picked, else the one who requested the work.
@@ -246,13 +274,7 @@ watch(
                                 v-for="tenant in workOrderTenants"
                                 :key="tenant.id"
                             >
-                                <SelectItem
-                                    :value="String(tenant.id)"
-                                    :selected="
-                                        tenant.mobile_phone ===
-                                        workOrder.requested?.mobile_phone
-                                    "
-                                >
+                                <SelectItem :value="String(tenant.id)">
                                     {{ tenant.first_name }}
                                     {{ tenant.last_name }} -
                                     {{

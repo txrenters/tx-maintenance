@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\JobberTextMessage;
+use App\Models\Owner;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TwilioPhoneNumber;
@@ -300,6 +301,23 @@ class InboundSmsThreadRoutingTest extends TestCase
 
         $this->assertSame($workOrder->id, (int) $stored->work_order_id);
         $this->assertSame('tenant', $stored->conversation_type);
+    }
+
+    public function test_a_ref_from_an_owner_who_requested_the_work_lands_on_the_owner_thread(): void
+    {
+        // PropertyWare's Requested By is whoever raised the work order, often
+        // the owner. Their number must not be mistaken for the tenant's.
+        $requester = Tenants::factory()->create(['mobile_phone' => '5551234567']);
+        $owner = Owner::factory()->create(['phone' => '5551234567', 'mobile' => null]);
+        $workOrder = $this->seedWorkOrder(['tenant_id' => $requester->id]);
+        $workOrder->owners()->attach($owner->id);
+
+        $this->postInbound("Which day works for the tenant? (Ref: WO#{$workOrder->work_order_no})", 'SM_route_16')->assertNoContent();
+
+        $stored = $this->storedMessage('SM_route_16');
+
+        $this->assertSame($workOrder->id, (int) $stored->work_order_id);
+        $this->assertSame('owner', $stored->conversation_type);
     }
 
     /**
