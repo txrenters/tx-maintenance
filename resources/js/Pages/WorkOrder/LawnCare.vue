@@ -1388,8 +1388,15 @@ const date_range = ref({
                 :date-range="date_range"
                 @showWorkOrder="handleWorkOrder"
             />
-            <!-- The corner mini map; click for the full map (John Carlo, 2026-10-27). -->
-            <LawnServiceMap :service-status="service_status" @open="handleWorkOrder" />
+            <!-- The corner mini map; click for the full map (John Carlo,
+                 2026-10-27). This page also renders the HVAC, Easy Fix,
+                 Turnovers, HOA and Crystal Creek boards; the map is Lawn
+                 Service only (Earl, 2026-10-27). -->
+            <LawnServiceMap
+                v-if="listRouteName === 'work_orders.lawn_service'"
+                :service-status="service_status"
+                @open="handleWorkOrder"
+            />
         </Deferred>
         <ScrollBar orientation="horizontal" />
     </ScrollArea>
