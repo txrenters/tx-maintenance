@@ -17,13 +17,18 @@ const fullName = defineModel("fullName");
 const contactNumber = defineModel("contactNumber");
 const propertyName = defineModel("propertyName");
 const selectedBuildingId = defineModel("selectedBuildingId");
-const loadBuildingData = defineModel("loadBuildingData");
 const loading = defineModel("loading");
 
 const props = defineProps({
     buildings: Object,
     buildingInfo: Object,
+    // The parent's loader, called when a building is picked. A plain
+    // callback prop: it was a v-model on a function, which Vue 3.5.44's
+    // compiler rejects (a const binding is not writable).
+    loadBuildingData: { type: Function, default: () => {} },
 });
+
+const loadBuildingData = (value) => props.loadBuildingData(value);
 
 const emit = defineEmits(["search"]);
 const { toast } = useToast();
