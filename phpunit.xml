@@ -25,6 +25,12 @@
         <env name="BROADCAST_CONNECTION" value="log"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_DATABASE" value="txrenter_test"/>
+        <!-- Pinned so the suite reads the same values under any .env, the
+             developer's or .env.example on CI: the THMP filter tests expect
+             the config default login, and the HOA reminders need a number to
+             send from before an overdue violation can be flagged. -->
+        <env name="JOBBER_THMP_FILTER_USERS" value="xservice@txhomemp.com"/>
+        <env name="MAINTENANC_TWILIO_PHONE_NUMBER" value="+15550001111"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="OPENAI_API_KEY" value=""/>
         <env name="ANTHROPIC_API_KEY" value=""/>
