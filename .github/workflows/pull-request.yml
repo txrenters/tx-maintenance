@@ -18,22 +18,6 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
-    # MySQL, matching production on the VPS and the txrenter_test database
-    # phpunit.xml names. A throwaway service, never a real database.
-    services:
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-          MYSQL_DATABASE: txrenter_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=20
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -50,7 +34,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "npm"
 
       - name: Install Composer dependencies
@@ -69,14 +53,14 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      # The suite runs on sqlite, as .env.example and every local run do:
+      # phpunit.xml names the tracked txrenter_test file as the database and
+      # RefreshDatabase rebuilds it. Part of the suite only passes on sqlite
+      # (MySQL strict mode rejects the fixture values some tests rely on), so
+      # a MySQL service here would fail the check on tests, not on the code.
       - name: Run tests
         env:
-          DB_CONNECTION: mysql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_DATABASE: txrenter_test
-          DB_USERNAME: root
-          DB_PASSWORD: ""
+          DB_CONNECTION: sqlite
         run: php -d memory_limit=1G artisan test --compact
 
   # The Dockerfile installs Node through NodeSource rather than setup-node, so
