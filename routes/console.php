@@ -347,3 +347,11 @@ Schedule::command('import:all-vendors')
     ->weeklyOn(0, '04:00')
     ->withoutOverlapping(120)
     ->runInBackground();
+
+// Building coordinates for the Lawn Service board's map (and any board map
+// after it): the free Census batch geocoder, new or changed addresses only,
+// so a nightly run is one small request. Safe to re-run; --dry-run reports.
+Schedule::command('geocode:buildings')
+    ->dailyAt('03:30')
+    ->withoutOverlapping()
+    ->runInBackground();
