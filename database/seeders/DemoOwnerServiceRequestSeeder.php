@@ -103,7 +103,7 @@ class DemoOwnerServiceRequestSeeder extends Seeder
 
         $count = $workOrder->owner_conversation()->count();
 
-        $this->command?->info("Seeded demo Work Order #".self::WO_NO." with {$count} owner message(s) — no SMS sent.");
+        $this->command?->info('Seeded demo Work Order #'.self::WO_NO." with {$count} owner message(s) — no SMS sent.");
         $this->command?->info('Open it in the app and view the Owner conversation tab.');
     }
 }

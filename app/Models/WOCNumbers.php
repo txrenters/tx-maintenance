@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\WOCNumbersFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WOCNumbers extends Model
 {
-    /** @use HasFactory<\Database\Factories\WOCNumbersFactory> */
+    /** @use HasFactory<WOCNumbersFactory> */
     use HasFactory;
 
     protected $table = 'woc_numbers';
