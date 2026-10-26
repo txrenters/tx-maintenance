@@ -2484,7 +2484,7 @@ const redirectToHandbook = () => {
                         v-model:contact-number="contactNumber"
                         v-model:property-name="propertyName"
                         v-model:selectedBuilding-id="selectedBuildingId"
-                        v-model:loadBuilding-data="loadBuildingData"
+                        :load-building-data="loadBuildingData"
                         v-model:loading="loading"
                         @search="searchProperty"
                     />
