@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\ConversationScope;
+use App\Services\AnsweredNotificationReader;
 use App\Services\AwaitingReplyCounter;
 use App\Services\CourtesyCloserService;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -90,6 +91,14 @@ class Conversation extends Model
                 app(CourtesyCloserService::class)->recordObviousCloser($message);
             } catch (\Throwable) {
                 // Fail-open: the thread simply counts as awaiting.
+            }
+
+            // An outbound owner message answers the work order's earlier portal
+            // decisions, whoever sent it and whichever owner it went to.
+            try {
+                app(AnsweredNotificationReader::class)->answerDecisionsBefore($message);
+            } catch (Throwable) {
+                // Fail-open: the decision simply keeps counting as awaiting.
             }
 
             $forget();

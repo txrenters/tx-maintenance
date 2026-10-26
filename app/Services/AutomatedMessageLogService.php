@@ -43,6 +43,7 @@ class AutomatedMessageLogService
         'vendor_assignment_sms' => 'Vendor assignment (text)',
         'tenant_vendor_assignment_sms' => 'Tenant: vendor assigned',
         'owner_vendor_assignment_sms' => 'Owner: vendor assigned (text)',
+        'owner_approval_thanks_sms' => 'Owner: approval thanks (text)',
         'owner_vendor_assignment_email' => 'Owner: vendor assigned (email)',
         'owner_service_request_sms' => 'Owner: new service request (text)',
         'owner_service_request_email' => 'Owner: new service request (email)',

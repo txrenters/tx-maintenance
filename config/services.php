@@ -145,6 +145,11 @@ return [
         // new service request comes in (confirmation + description). Owners
         // with no phone are emailed instead (work_order.owner_intake_email).
         'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),
+        // Text the owner a thank-you the moment they approve a work order in
+        // the owner portal (approvals only), from the WOC on the owner<->WOC
+        // thread, with their portal link. The thanks answers the approval, so
+        // it leaves the Inbox's Awaiting reply list; the bell entry stays.
+        'owner_approval_thanks_sms' => env('OWNER_APPROVAL_THANKS_SMS_ENABLED', true),
         // Text the tenant a no-login portal link (photo upload) when their work
         // order is marked as a tenant easy fix, plus reminders until done.
         'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', true),
