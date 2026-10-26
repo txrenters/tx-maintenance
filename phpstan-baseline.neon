@@ -1,0 +1,4093 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/AuditTenantEasyFix.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Console/Commands/AuditTenantEasyFix.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Console/Commands/AutoCompleteVerifiedTasks.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Console/Commands/AutoCompleteVerifiedTasks.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/BackfillInvoiceNumbers.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_no" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/BackfillInvoiceNumbers.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpOwnerSchedule.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/FollowUpOwnerSchedule.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/FollowUpTenantSchedule.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Vendor\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isOwnerPlaceholder\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Parameter \#1 \$vendors of method App\\Console\\Commands\\FollowUpTenantVendorContact\:\:hasAgedAssignment\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Vendor\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/FollowUpTenantVendorContact.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/FollowUpUnscheduledVendors.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/FollowUpUnscheduledVendors.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\ImportAllWorkOrdersCommand\:\:createVendor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Console/Commands/ImportAllWorkOrdersCommand.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$headers$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Console/Commands/ImportAllWorkOrdersCommand.php
+
+		-
+			message: '#^PHPDoc tag @return with type array\<int, mixed\>\|null is not subtype of native type string\|null\.$#'
+			identifier: return.phpDocType
+			count: 1
+			path: app/Console/Commands/ImportAllWorkOrdersCommand.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$full_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Cannot call method copy\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\ListTbpRemindedVisits\:\:groupSends\(\) should return Illuminate\\Support\\Collection\<int, array\<string, int\|string\>\> but returns Illuminate\\Support\\Collection\<int, array\{job_id\: int, job_number\: string, job_title\: string, client\: string, property\: string, visit_date\: mixed, tiers\: string, channel\: string, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\ListTbpRemindedVisits\:\:ledgerSends\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{source\: string, message_id\: int, job_id\: int, job_number\: string, visit_id\: int\|null, visit_date\: Carbon\\Carbon\|null, channel\: string, recipient\: string, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\ListTbpRemindedVisits\:\:manualNotices\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{source\: string, message_id\: int, job_id\: int, job_number\: string, visit_id\: int\|null, visit_date\: Carbon\\Carbon\|null, channel\: string, recipient\: string, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>full_address" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>job_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ListTbpRemindedVisits.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\NudgeOwnerApproval\:\:recipients\(\) should return list\<array\{App\\Models\\Owner, string\}\> but returns list\<array\{Illuminate\\Database\\Eloquent\\Model, string\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Console/Commands/NudgeOwnerApproval.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortBy\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: int\<0, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/NudgeOwnerApproval.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortByDesc\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/NudgeOwnerApproval.php
+
+		-
+			message: '#^Parameter \#1 \$owner of method App\\Console\\Commands\\NudgeOwnerApproval\:\:ownerEmail\(\) expects App\\Models\\Owner, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/NudgeOwnerApproval.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_no" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/PushPendingWorkOrderNotesCommand.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ResendPortalLinksForDomainChange.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/ResendPortalLinksForDomainChange.php
+
+		-
+			message: '#^Property App\\Console\\Commands\\ResendPortalLinksForDomainChange\:\:\$alreadySent \(array\<string, true\>\) does not accept array\<string, bool\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Console/Commands/ResendPortalLinksForDomainChange.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Console/Commands/SendHoaViolationReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/SendHoaViolationReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/Console/Commands/SendHoaViolationReminders.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:automationPausedFor\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/SendHoaViolationReminders.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:vendors\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Console/Commands/SendHoaViolationReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 10
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$job_number\.$#'
+			identifier: property.notFound
+			count: 10
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Offset ''propertyware_address'' on array\{email\: non\-empty\-string, name\: mixed, lease_status\: mixed, propertyware_building\: string, propertyware_address\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Variable \$message2 on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 2
+			path: app/Console/Commands/SendJobReminders.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/SyncWorkOrderDocumentsCommand.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/SyncWorkOrderDocumentsCommand.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Console/Commands/SyncWorkOrderDocumentsCommand.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\SyncWorkOrderDocumentsCommand\:\:sendServiceRequestToVendors\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Console/Commands/SyncWorkOrderDocumentsCommand.php
+
+		-
+			message: '#^Parameter \$vendor of method App\\Services\\WorkOrderEmailSender\:\:sendVendorEmail\(\) expects App\\Models\\Vendor, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/SyncWorkOrderDocumentsCommand.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/UpdateWorkOrderStatus.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\UpdateWorkOrderStatus\:\:createVendor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Console/Commands/UpdateWorkOrderStatus.php
+
+		-
+			message: '#^Method App\\Console\\Commands\\UpdateWorkOrderStatus\:\:processNotes\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Console/Commands/UpdateWorkOrderStatus.php
+
+		-
+			message: '#^Variable \$customFieldData in empty\(\) always exists and is always falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Console/Commands/UpdateWorkOrderStatus.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Console/Commands/WorkOrderImportCommand.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Method App\\Exports\\WorkOrdersExport\:\:rows\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{work_order_no\: int\|null, location\: string\|null, created_date\: string\|null, service_status\: string, description\: string, requested_by\: string\|null, managed_by\: string, hour_estimate\: int\|null, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkOrder\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\WorkOrder\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''DESC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Exports/WorkOrdersExport.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\Attachments\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/API/AttachmentsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/API/InvoiceController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/API/InvoiceController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/API/ServiceScheduleController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:scoped\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/BuildingController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 12
+			path: app/Http/Controllers/BuildingController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$building\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$location\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\ServiceSchedule\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/CalendarController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\ConversationController\:\:portalRecipient\(\) should return App\\Models\\Owner\|App\\Models\\Tenants\|null but returns \(Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\)\|null\.$#'
+			identifier: return.type
+			count: 2
+			path: app/Http/Controllers/ConversationController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\ConversationController\:\:portalRecipient\(\) should return App\\Models\\Owner\|App\\Models\\Tenants\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/ConversationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CoordinatorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/CoordinatorController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\WorkOrder\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/CoordinatorController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\WorkOrder\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''DESC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/CoordinatorController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Jobber\:\:\$active_inspections\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Jobber\:\:\$total_inspections\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$completed_inspection_visits\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$completed_visits\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$overdue_inspections\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$total_visits\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberVisit\:\:\$upcoming_inspections\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\ServiceStatus\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$Completed\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$Created\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$completed_work_orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$month\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$pending_work_orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$process_work_orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$total_work_orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$urgent_work_orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$year\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrderTask\:\:\$completed_tasks\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrderTask\:\:\$total_tasks\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\ServiceStatus\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),mixed\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,string\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>Completed" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>Created" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>count" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HoaPhotoGalleryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HoaViolationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HoaViolationController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:hoaViolations\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/HoaViolationController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\HoaViolationController\:\:workOrderTypeOptions\(\) should return Illuminate\\Support\\Collection\<int, string\> but returns Illuminate\\Support\\Collection\<int, non\-falsy\-string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/HoaViolationController.php
+
+		-
+			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Http/Controllers/InboxController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>sender_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InboxController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Vendor\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$full_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$image\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$job_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$messages\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$receiver_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sender_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sent_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$street\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_error_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_error_message\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_sid\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$visits\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Jobber\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 4
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, body\: string, author\: mixed, created_at\: Carbon\\Carbon\|null\}, Closure\(App\\Models\\JobberJobNote\)\: array\{id\: int\<0, max\>, body\: string, author\: mixed, created_at\: Carbon\\Carbon\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, name\: string\|null, has_email\: bool, portal_url\: string\|null\}, Closure\(App\\Models\\Vendor\)\: array\{id\: int\<0, max\>, name\: string\|null, has_email\: bool, portal_url\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, title\: string, amount\: numeric\-string, status\: string, vendor_name\: mixed, url\: string, created_at\: Carbon\\Carbon\|null\}, Closure\(App\\Models\\JobberJobInvoice\)\: array\{id\: int\<0, max\>, title\: string, amount\: numeric\-string, status\: string, vendor_name\: mixed, url\: string, created_at\: Carbon\\Carbon\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, title\: string, type\: string, uploaded_via\: string, url\: string, is_image\: bool, created_at\: Carbon\\Carbon\|null\}, Closure\(App\\Models\\JobberJobAttachment\)\: array\{id\: int\<0, max\>, title\: string, type\: string, uploaded_via\: string, url\: string, is_image\: bool, created_at\: Carbon\\Carbon\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\JobberTextMessage\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/InspectionController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$clientContacts\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$job_number\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$jobber_web_uri\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$property\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:visits\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\JobberVisit\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Parameter \#1 \$visits of method App\\Services\\JobberWorkOrderResolver\:\:forVisits\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\JobberVisit\>, Illuminate\\Support\\Collection\<int, App\\Models\\JobberVisit\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\JobberVisit\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/InspectionVisitController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$building_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/InvoiceController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:filter\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/InvoiceController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$full_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/JobberVendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberWebhookController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberWebhookController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$property\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/JobberWebhookController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:visits\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/JobberWebhookController.php
+
+		-
+			message: '#^Variable \$visitsData in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.variable
+			count: 1
+			path: app/Http/Controllers/JobberWebhookController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MessageAlertController.php
+
+		-
+			message: '#^Parameter \#2 \$workOrder of method App\\Services\\ConversationParticipants\:\:counterpartyName\(\) expects App\\Models\\WorkOrder\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/MessageAlertController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$jobber_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:workOrders\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Spatie\\Activitylog\\Models\\Activity\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#1 \$source of method Illuminate\\Support\\Collection\<int,array\<int, mixed\>\>\:\:concat\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Http\\Controllers\\NotificationController\:\:participantByPhone\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Parameter \#2 \$workOrder of method App\\Services\\ConversationParticipants\:\:counterpartyName\(\) expects App\\Models\\WorkOrder\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>jobber_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$filename\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mime\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$size\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\OwnerEmailNotification\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\Owner\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Http\\Controllers\\OwnerController\:\:workOrderData\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\Owner\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerController.php
+
+		-
+			message: '#^Parameter \#2 \$owner of method App\\Http\\Controllers\\OwnerEmailController\:\:send\(\) expects App\\Models\\Owner, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|\(Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\) given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerEmailController.php
+
+		-
+			message: '#^Parameter \#3 \$workOrder of method App\\Http\\Controllers\\OwnerEmailController\:\:send\(\) expects App\\Models\\WorkOrder\|null, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|\(Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\)\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerEmailController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_end_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 2
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\OwnerPortalController\:\:gallery\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, non\-empty\-array\<string, mixed\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\<string, mixed\>, Closure\(App\\Models\\ConversationMedia\)\: array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: non\-empty\-array\<string, mixed\>, Closure\(App\\Models\\ConversationMedia\)\: non\-empty\-array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/OwnerPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{label\: non\-falsy\-string, url\: string\|null\}, Closure\(App\\Models\\Owner\)\: array\{label\: non\-falsy\-string, url\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/PortalLinkController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortByDesc\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/PortalLinkController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkOrder\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 7
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\WorkOrderTask\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:partition\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 4
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$public_url\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/ResendTwilioMessageController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$building_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/SearchController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/SearchController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkOrder\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/SearchController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$requested_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ServiceScheduleTenantNoticeController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\ServiceStatus\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ServiceStatusController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/TaskController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_end_date\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/TaskController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/TaskController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/TaskController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TaskTemplateController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\TaskTemplate\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/TaskTemplateController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\TaskTemplate\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TaskTemplateController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TbpVisitNoticeController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TbpVisitNoticeController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TbpVisitNoticeController.php
+
+		-
+			message: '#^Parameter \#1 \$job of method App\\Http\\Controllers\\TbpVisitNoticeController\:\:recipients\(\) expects App\\Models\\Jobber, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TbpVisitNoticeController.php
+
+		-
+			message: '#^Parameter \$job of method App\\Services\\TenantJobberEmailSender\:\:send\(\) expects App\\Models\\Jobber\|null, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|\(Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\)\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TenantEmailController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_end_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\TenantPortalController\:\:gallery\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, non\-empty\-array\<string, mixed\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\<string, mixed\>, Closure\(App\\Models\\ConversationMedia\)\: array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: non\-empty\-array\<string, mixed\>, Closure\(App\\Models\\ConversationMedia\)\: non\-empty\-array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TenantPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$attachments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body_html\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body_text\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$direction\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$from_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$job_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$job_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$jobberJob\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$jobber_job_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$metadata\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sent_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$start_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$subject\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$to_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkOrder\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\Tenants\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\Tenants\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TenantsController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 2
+			path: app/Http/Controllers/TwilioMessageSearchController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_no" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TwilioMessageSearchController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>job_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TwilioWebhookController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_no" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/TwilioWebhookController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$profile_photo_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/UserController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\User\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/UserController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body_html\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body_text\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$completed_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$direction\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$emailed_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$from_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$location\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$priority\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$subject\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$to_email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\Vendor\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\Vendor\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\Vendor\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''DESC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\VendorTypes\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorNotesController.php
+
+		-
+			message: '#^Parameter \#2 \$vendor of method App\\Http\\Controllers\\VendorNotesController\:\:ringEstimateBell\(\) expects App\\Models\\Vendor, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorNotesController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$content_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$public_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Conversation\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 3
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{work_order_no\: int\|null, description\: string\|null, priority\: string\|null, location\: string\|null, category\: string\|null, building\: mixed, created_date\: string\|null, service_status_id\: int\<0, max\>, status\: mixed, is_emergency\: bool, completed_tasks\: int\<0, max\>, total_tasks\: int\<0, max\>, accent\: string, unread\: int\<0, max\>, url\: string\|null\}, Closure\(App\\Models\\WorkOrder\)\: array\{work_order_no\: int\|null, description\: string\|null, priority\: string\|null, location\: string\|null, category\: string\|null, building\: mixed, created_date\: string\|null, service_status_id\: int\<0, max\>, status\: mixed, is_emergency\: bool, completed_tasks\: int\<0, max\>, total_tasks\: int\<0, max\>, accent\: string, unread\: int\<0, max\>, url\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:filter\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Parameter \#2 \$ownTasks of method App\\Http\\Controllers\\VendorPortalController\:\:cardAccent\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\WorkOrderTask\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>phone_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/VendorPortalController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/WOCNumbersController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WOCNumbersController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WOCNumbersController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Pagination\\AbstractPaginator\<int,App\\Models\\WOCNumbers\>\:\:through\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/WOCNumbersController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:assignedToVendor\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:workOrders\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:scoped\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Instantiated class App\\Events\\WorkOrderUpdated not found\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\User\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\WorkOrder\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''DESC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkOrderController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vendor\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Parameter \$vendor of method App\\Services\\WorkOrderEmailSender\:\:sendVendorEmail\(\) expects App\\Models\\Vendor, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|\(Illuminate\\Database\\Eloquent\\Model&object\{pivot\: Illuminate\\Database\\Eloquent\\Relations\\Pivot\}\) given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/WorkOrderEmailController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrderJobberNote\:\:\$added_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vendor\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, message\: string\|null, note_type\: string, author_name\: string\|null, pinned\: bool, added_at\: mixed, last_edited_at\: string\|null\}, Closure\(App\\Models\\WorkOrderJobberNote\)\: array\{id\: int\<0, max\>, message\: string\|null, note_type\: string, author_name\: string\|null, pinned\: bool, added_at\: mixed, last_edited_at\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortByDesc\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\WorkOrderJobberNote\)\: \(Carbon\\Carbon\|null\) given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkOrderNotesController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 4
+			path: app/Http/Middleware/HandleInertiaRequests.php
+
+		-
+			message: '#^Array has 2 duplicate keys with value ''tasks\.\*\.is_task_service_status_emergency'' \(''tasks\.\*\.is_task_service_status_emergency'', ''tasks\.\*\.is_task_service_status_emergency''\)\.$#'
+			identifier: array.duplicateKey
+			count: 1
+			path: app/Http/Requests/StoreTaskTemplateRequest.php
+
+		-
+			message: '#^Array has 2 duplicate keys with value ''tasks\.\*\.is_task_service_status_emergency'' \(''tasks\.\*\.is_task_service_status_emergency'', ''tasks\.\*\.is_task_service_status_emergency''\)\.$#'
+			identifier: array.duplicateKey
+			count: 1
+			path: app/Http/Requests/UpdateTaskTemplateRequest.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$content_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$file_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$original_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationMediaResource\:\:\$public_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationMediaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$conversation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$is_mms\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$is_read\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$message\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$receiver_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$sender_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$work_order\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\API\\ConversationResource\:\:\$work_order_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\API\\ConversationResource\:\:relationLoaded\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/API/ConversationResource.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 3
+			path: app/Jobs/GenerateOnboardingPdfJob.php
+
+		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: app/Jobs/GenerateOnboardingPdfJob.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 3
+			path: app/Jobs/GenerateW9PdfJob.php
+
+		-
+			message: '#^Method App\\Jobs\\ImportWorkOrderJob\:\:processDocuments\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Jobs/ImportWorkOrderJob.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Jobs/ImportWorkOrderJob.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/ReviewCompletionPhoto.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$full_address\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$access_token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/SendJobberVendorAssignment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$access_token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 4
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Parameter \#1 \$propertywareWorkOrderId of method App\\Services\\PropertyWareService\:\:uploadWorkOrderPdf\(\) expects string\|null, int\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/SendVendorWorkOrderInformation.php
+
+		-
+			message: '#^PHPDoc tag @use has invalid type Database\\Factories\\BuildingFactory\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Models/Building.php
+
+		-
+			message: '#^Type Database\\Factories\\BuildingFactory in generic type Illuminate\\Database\\Eloquent\\Factories\\HasFactory\<Database\\Factories\\BuildingFactory\> in PHPDoc tag @use is not subtype of template type TFactory of Illuminate\\Database\\Eloquent\\Factories\\Factory of trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory\.$#'
+			identifier: generics.notSubtype
+			count: 1
+			path: app/Models/Building.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Caught class App\\Models\\Throwable not found\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Invoice\:\:\$archived_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Invoice.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\JobberJobInvoice\:\:\$archived_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/JobberJobInvoice.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/AttachmentScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/AttachmentScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/CalendarScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Scopes/CalendarScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Scopes/ConversationScope.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<covariant Illuminate\\Database\\Eloquent\\Model\>\:\:forVendorThread\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Scopes/ConversationScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/InvoiceScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Scopes/InvoiceScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/NotesScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/TaskScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Scopes/WorkOrderScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Scopes/WorkOrderScope.php
+
+		-
+			message: '#^PHPDoc tag @use has invalid type Database\\Factories\\ServiceStatusFactory\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Models/ServiceStatus.php
+
+		-
+			message: '#^Type Database\\Factories\\ServiceStatusFactory in generic type Illuminate\\Database\\Eloquent\\Factories\\HasFactory\<Database\\Factories\\ServiceStatusFactory\> in PHPDoc tag @use is not subtype of template type TFactory of Illuminate\\Database\\Eloquent\\Factories\\Factory of trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory\.$#'
+			identifier: generics.notSubtype
+			count: 1
+			path: app/Models/ServiceStatus.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^PHPDoc type array\<int, string\> of property App\\Models\\User\:\:\$appends is not covariant with PHPDoc type list\<string\> of overridden property Illuminate\\Database\\Eloquent\\Model\:\:\$appends\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^PHPDoc type array\<int, string\> of property App\\Models\\User\:\:\$hidden is not covariant with PHPDoc type list\<string\> of overridden property Illuminate\\Database\\Eloquent\\Model\:\:\$hidden\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Vendor.php
+
+		-
+			message: '#^Method App\\Models\\Vendor\:\:thmpFilterList\(\) should return Illuminate\\Support\\Collection\<int, string\> but returns Illuminate\\Support\\Collection\<int, non\-falsy\-string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Vendor.php
+
+		-
+			message: '#^PHPDoc tag @use has invalid type Database\\Factories\\WOCNumbersFactory\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Models/WOCNumbers.php
+
+		-
+			message: '#^Type Database\\Factories\\WOCNumbersFactory in generic type Illuminate\\Database\\Eloquent\\Factories\\HasFactory\<Database\\Factories\\WOCNumbersFactory\> in PHPDoc tag @use is not subtype of template type TFactory of Illuminate\\Database\\Eloquent\\Factories\\Factory of trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory\.$#'
+			identifier: generics.notSubtype
+			count: 1
+			path: app/Models/WOCNumbers.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$propertyware_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Method App\\Models\\WorkOrder\:\:notifiableOwners\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Owner\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Method App\\Models\\WorkOrder\:\:primaryOwner\(\) should return App\\Models\\Owner\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Method App\\Models\\WorkOrder\:\:tenantIntakeRecipients\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Tenants\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Method App\\Models\\WorkOrder\:\:tenantIntakeRecipients\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Tenants\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Owner\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Tenants\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortBy\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: int\<0, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortByDesc\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: float given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:contains\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|int\|string, Closure\(App\\Models\\Tenants\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:contains\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|int\|string, Closure\(App\\Models\\Vendor\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:unique\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\|null, Closure\(App\\Models\\Owner\)\: string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#1 of callable callable\(App\\Models\\Tenants\)\: bool expects App\\Models\\Tenants, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Parameter \#2 \$direction of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\ServiceSchedule\>\:\:orderBy\(\) expects ''asc''\|''desc''\|SortDirection, ''ASC'' given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Property App\\Models\\WorkOrder\:\:\$paused_automations \(string\|null\) does not accept array\<int, string\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>address" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/WorkOrder.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkOrderNotes.php
+
+		-
+			message: '#^Call to static method textProvider\(\) on an unknown class Laravel\\Ai\\Facades\\Ai\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/AiSettings.php
+
+		-
+			message: '#^Method App\\Services\\AnsweredNotificationReader\:\:decisionConversationIds\(\) should return Illuminate\\Support\\Collection\<int, int\> but returns Illuminate\\Support\\Collection\<int, int\<min, \-1\>\|int\<1, max\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/AnsweredNotificationReader.php
+
+		-
+			message: '#^Offset ''owner_appointment…''\|''owner_approval…''\|''owner_easy_fix_sms''\|''owner_schedule…''\|''owner_service…''\|''tenant_appointment…''\|''tenant_easy_fix…''\|''tenant_easy_fix_sms''\|''tenant_job_reminder…''\|''tenant_portal_link…''\|''tenant_schedule…''\|''tenant_service…''\|''tenant_tbp_visit…''\|''tenant_vendor…''\|''vendor_jobber…''\|''vendor_photo…''\|''vendor_schedule…'' on array\{vendor_assignment_email\: ''Vendor assignment …'', vendor_assignment_sms\: ''Vendor assignment …'', tenant_vendor_assignment_sms\: ''Tenant\: vendor…'', owner_vendor_assignment_sms\: ''Owner\: vendor…'', owner_approval_thanks_sms\: ''Owner\: approval…'', owner_vendor_assignment_email\: ''Owner\: vendor…'', owner_service_request_sms\: ''Owner\: new service…'', owner_service_request_email\: ''Owner\: new service…'', \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/AutomatedMessageTemplates.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Conversation\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/BoardSummaryService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/BoardSummaryService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/BoardSummaryService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/BoardSummaryService.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, object\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ChatbotEventProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>created_at" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ChatbotEventProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ChatbotEventProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>twilio_sid" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ChatbotEventProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$content_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$local_path\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$owners\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$public_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tenants\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_no\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ChatbotHub.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$profile_photo_url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>phone_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ConversationParticipants.php
+
+		-
+			message: '#^Method App\\Services\\CourtesyCloserService\:\:threadContext\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Support\\Collection\<int, stdClass\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/CourtesyCloserService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/DescriptionChangeAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/DescriptionChangeAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/DescriptionChangeAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/EmergencyAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/EmergencyAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/EmergencyAlertService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$building\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\HoaViolationConfirmationSender\:\:logSent\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\HoaViolationConfirmationSender\:\:recipients\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:link\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/HoaViolationConfirmationSender.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/HoaViolationIntakeService.php
+
+		-
+			message: '#^Method App\\Services\\HoaViolationIntakeService\:\:leaseTenantFor\(\) should return App\\Models\\Tenants\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/HoaViolationIntakeService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:first\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Tenants\)\: bool given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/HoaViolationIntakeService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>user_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/HoaViolationIntakeService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/HvacBoardActivityFeed.php
+
+		-
+			message: '#^Parameter \#2 \$seenAt of method App\\Services\\HvacBoardActivityFeed\:\:namedChanges\(\) expects Illuminate\\Support\\Carbon, Carbon\\CarbonInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/HvacBoardActivityFeed.php
+
+		-
+			message: '#^Offset ''mime'' on array\{0\: int\<0, max\>, 1\: int\<0, max\>, 2\: int, 3\: string, mime\: string, channels\?\: int, bits\?\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Images/GdImageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$filetype\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Images/ThumbnailService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$thumb_path\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Images/ThumbnailService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$conversation_type\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$twilio_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Parameter \#1 \$owner of method App\\Models\\WorkOrder\:\:normalizedOwnerPhone\(\) expects App\\Models\\Owner, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Parameter \#2 \$media of method App\\Services\\TenantPhotoMirrorService\:\:mirrorForConversation\(\) expects iterable\<int, App\\Models\\ConversationMedia\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>job_number" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_no" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Variable \$extraRows in empty\(\) always exists and is not falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Services/InboundTwilioMessageProcessor.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Parameter \#1 \$customer of method App\\Services\\JobberJobService\:\:outsideCustomerPropertyId\(\) expects App\\Models\\OutsideCustomer, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Parameter \#2 \$customer of method App\\Services\\JobberJobService\:\:outsideJobInstructions\(\) expects App\\Models\\OutsideCustomer, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Parameter \#2 \$customer of method App\\Services\\JobberJobService\:\:outsideJobTitle\(\) expects App\\Models\\OutsideCustomer, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Method App\\Services\\JobberTechnicianResolver\:\:assignedVisits\(\) never returns Illuminate\\Support\\Collection\<int, App\\Models\\JobberVisit\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Services/JobberTechnicianResolver.php
+
+		-
+			message: '#^Method App\\Services\\JobberTechnicianResolver\:\:assignedVisits\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\JobberVisit\>\|null but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/JobberTechnicianResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$jobber_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/JobberWorkOrderResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberWorkOrderResolver.php
+
+		-
+			message: '#^Method App\\Services\\MessageTriageService\:\:threadContext\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Support\\Collection\<int, stdClass\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/MessageTriageService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$work_order_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Notifications/StaffActivityNotifier.php
+
+		-
+			message: '#^Method App\\Services\\Notifications\\StaffActivityNotifier\:\:vendorRecipientsFor\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\User\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Notifications/StaffActivityNotifier.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: bool\)\|null, Closure\(App\\Models\\User\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Notifications/StaffActivityNotifier.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:reject\(\) expects bool\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model, Closure\(App\\Models\\User\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Notifications/StaffActivityNotifier.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>work_order_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Notifications/StaffActivityNotifier.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/OwnerAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/OwnerAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/OwnerAppointmentNotificationService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:automationPausedFor\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/OwnerAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/OwnerApprovalThanksService.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Services/OwnerApprovalThanksService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Method App\\Services\\OwnerServiceRequestNotificationService\:\:emailFallbackOwners\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Owner\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Owner\)\: bool given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortByDesc\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\Owner\)\: float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:unique\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\|null, Closure\(App\\Models\\Owner\)\: string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/OwnerServiceRequestNotificationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PortalMessageHistory.php
+
+		-
+			message: '#^Method App\\Services\\PortalMessageHistory\:\:numbers\(\) should return Illuminate\\Support\\Collection\<int, string\> but returns Illuminate\\Support\\Collection\<int, non\-falsy\-string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/PortalMessageHistory.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int\<0, max\>, name\: string, type\: non\-falsy\-string\}, Closure\(App\\Models\\ConversationMedia\)\: array\{id\: int\<0, max\>, name\: string, type\: non\-falsy\-string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PortalMessageHistory.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Support\\Collection\<int, array\<string, bool\|int\|list\<array\<string, int\|string\>\>\|string\|null\>\>\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/PortalMessageHistory.php
+
+		-
+			message: '#^Parameter \#1 \$people of method App\\Services\\PortalMessageHistory\:\:numbers\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Owner\|App\\Models\\Tenants\>, Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Owner\>\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Tenants\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PortalMessageHistory.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\WorkOrder\>\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 6
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Parameter \#2 \$options of function curl_setopt_array expects array\{10002\: non\-empty\-string, 19913\: bool, 47\: bool, 10015\: array\|string, 10023\: array\<int, string\>, 10005\: non\-empty\-string, 13\: int, 78\: int, \.\.\.\}, array\{10002\: non\-falsy\-string, 19913\: true, 47\: true, 10015\: non\-falsy\-string, 10023\: array\{''Content\-Type\: text…'', ''SOAPAction\: ""''\}, 10005\: non\-falsy\-string, 13\: 300, 78\: 300, \.\.\.\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>additional_work_needed_reschedule" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>management_plan" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Variable \$cost_etimate on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Variable \$owners might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Variable \$time_estimate on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Services/PropertyWareService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$subject\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/StaleWorkOrderDigestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$auto_complete_trigger\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskAutoCompleteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_optional\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskAutoCompleteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$task_template_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskAutoCompleteService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>scheduled_end_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/TaskAutoCompleteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_emergency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$next_service_status_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$taskDetailNoOption\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$taskDetailYesOption\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TaskCompletionService\:\:changeServiceStatus\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TaskCompletionService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Parameter \#1 \$task of static method App\\Services\\TaskService\:\:templateTaskDueDate\(\) expects App\\Models\\Task, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Parameter \#1 \$vendor of static method App\\Services\\TaskService\:\:vendorUser\(\) expects App\\Models\\Vendor, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>due_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/TaskService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:automationPausedFor\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isThmp\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:skipsAutomatedMessages\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: string, Closure\(App\\Models\\Technician\)\: string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Parameter \#1 \$technician of method App\\Services\\TenantAppointmentNotificationService\:\:technicianPhoto\(\) expects App\\Models\\Technician, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Parameter \#4 \$tenant of method App\\Services\\TenantAppointmentNotificationService\:\:message\(\) expects App\\Models\\Tenants\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/TenantAppointmentNotificationService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TenantEasyFixService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantEasyFixService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/TenantEasyFixService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantPhotoMirrorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:skipsAutomatedMessages\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantEasyFixService\:\:tenantWasTexted\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:easyFixFollowUp\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:hoaInitialMessage\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:hoaReminderMessage\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:reminderMessage\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$workOrder of method App\\Services\\TenantPortalLinkService\:\:text\(\) expects App\\Models\\WorkOrder, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Services/TenantPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$portfolio_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantRequestIntakeService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantRequestIntakeService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TenantServiceRequestNotificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/TenantWorkOrderEmailSender.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: app/Services/TwilioService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$wocNumber\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/VendorPhotoRequestService.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Services/VendorPhotoRequestService.php
+
+		-
+			message: '#^Method App\\Services\\VendorPhotoRequestService\:\:sentAt\(\) should return Illuminate\\Support\\Carbon\|null but returns Carbon\\Carbon\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/VendorPhotoRequestService.php
+
+		-
+			message: '#^Method App\\Services\\VendorPhotoRequestService\:\:vendorsToText\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Vendor\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/VendorPhotoRequestService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Vendor\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/VendorPhotoRequestService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Vendor\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/VendorPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$access_token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/VendorPortalLinkService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{vendor_id\: int\<0, max\>, name\: string\|null, has_email\: bool, url\: string\|null, dashboard_url\: string\|null\}, Closure\(App\\Models\\Vendor\)\: array\{vendor_id\: int\<0, max\>, name\: string\|null, has_email\: bool, url\: string\|null, dashboard_url\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/VendorPortalLinkService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$password\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:assignRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:hasRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/VendorService.php
+
+		-
+			message: '#^Method App\\Services\\WorkOrderInformationPdf\:\:vendorsToShow\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\Vendor\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 2
+			path: app/Services/WorkOrderInformationPdf.php
+
+		-
+			message: '#^Property Spatie\\Activitylog\\Models\\Activity\:\:\$properties \(Illuminate\\Support\\Collection\|null\) does not accept array\<mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/WorkOrderLeaseService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkOrder\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$maintenance_notice\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vendor_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Method App\\Services\\WorkOrderRecommendationService\:\:firstActiveVendorFromHistory\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Method App\\Services\\WorkOrderRecommendationService\:\:generalFallbackVendor\(\) should return App\\Models\\Vendor\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Method App\\Services\\WorkOrderRecommendationService\:\:latest\(\) should return App\\Models\\WorkOrderRecommendation\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: array\{id\: int\<0, max\>, name\: string\|null, vendor_type\: string\|null\}, Closure\(App\\Models\\Vendor\)\: array\{id\: int\<0, max\>, name\: string\|null, vendor_type\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\FallbackVendor\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: bool\)\|null, Closure\(App\\Models\\Vendor\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:first\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: bool\)\|null, Closure\(App\\Models\\Vendor\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:flatMap\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: \(array\<mixed\>\|Illuminate\\Support\\Collection\<int\|string, mixed\>\), Closure\(App\\Models\\WorkOrder\)\: Illuminate\\Support\\Collection\<int\|string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:first\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\Vendor\)\: bool given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:filter\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect expects Illuminate\\Contracts\\Support\\Arrayable\<\(int\|string\), mixed\>\|iterable\<\(int\|string\), mixed\>\|null, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Parameter \#2 \$haystack of function in_array expects array, string given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>maintenance_notice" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/WorkOrderRecommendationService.php
+
+		-
+			message: '#^Method App\\Services\\WorkOrderService\:\:processDocuments\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/WorkOrderService.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Services/WorkOrderService.php

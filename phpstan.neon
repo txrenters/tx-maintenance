@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+# Static analysis gate for pull requests (Earl, 2026-10-27). Level 5 over the
+# application code, with every finding that existed on the day the gate went
+# in parked in phpstan-baseline.neon, so the check fails only on problems a
+# change introduces. Lower the baseline over time, never raise it: regenerate
+# it only after fixing findings, with
+#   vendor/bin/phpstan analyse --generate-baseline --memory-limit=1G
+parameters:
+    level: 5
+    paths:
+        - app
+    tmpDir: storage/framework/phpstan
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false

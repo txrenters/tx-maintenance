@@ -2,6 +2,10 @@ name: pull request
 
 # Runs before a merge, which here is also a deploy: the deploy workflow only
 # fires on a push to the default branch. Nothing in this file deploys.
+#
+# Gates (Earl, 2026-10-27): tests, style, static analysis, the migrations
+# against a real MySQL, the Docker images, and a dependency audit that warns
+# but never blocks.
 on:
   pull_request:
 
@@ -63,8 +67,104 @@ jobs:
           DB_CONNECTION: sqlite
         run: php -d memory_limit=1G artisan test --compact
 
+  # Code style (Pint) and static analysis (PHPStan through Larastan, level 5,
+  # with the findings that predate the gate parked in phpstan-baseline.neon so
+  # only new problems fail the check). Neither needs a database or a build.
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          extensions: mbstring, bcmath, pdo, pdo_mysql, curl, gd, xml, zip, soap, redis, pcntl, posix, intl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Static analysis (PHPStan)
+        run: php -d memory_limit=-1 vendor/bin/phpstan analyse --memory-limit=-1 --no-progress --error-format=github
+
+  # The migrations against a real MySQL, which is what the VPS runs and what
+  # sqlite in the tests cannot vouch for: from an empty database, a second
+  # run (every migration is guarded, so it must be a no-op), then the
+  # migrations this PR adds rolled back and run again. A migration that fails
+  # on the VPS takes the site down, so this stands in for the pre-deploy
+  # routine done by hand until now.
+  migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: txrenter_migrate
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: txrenter_migrate
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Full history, to diff this PR's migrations against its base.
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          extensions: mbstring, bcmath, pdo, pdo_mysql, curl, gd, xml, zip, soap, redis, pcntl, posix, intl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Migrate from an empty database
+        run: php artisan migrate --force --no-interaction
+
+      - name: Run the migrations a second time
+        run: php artisan migrate --force --no-interaction
+
+      - name: Roll back and re-run the migrations this PR adds
+        run: |
+          new=$(git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}...HEAD" -- database/migrations | wc -l)
+          echo "This PR adds ${new} migration(s)."
+          if [ "$new" -gt 0 ]; then
+            php artisan migrate:rollback --force --no-interaction --step="$new"
+            php artisan migrate --force --no-interaction
+          fi
+
   # The Dockerfile installs Node through NodeSource rather than setup-node, so
-  # the job above never exercises it. Building the image is the only check that
+  # the tests job never exercises it. Building the image is the only check that
   # the production toolchain still installs and runs the asset build.
   image:
     runs-on: ubuntu-latest
@@ -80,3 +180,33 @@ jobs:
 
       - name: Build the web image
         run: docker build --target web .
+
+  # Known security holes in dependencies. Advisory: it shows up red in the
+  # job list but never blocks the merge, because some findings have no fixed
+  # release yet (zod 4 is a code migration; @tailwindcss/typography pins its
+  # own parser). Read the log, decide, fix in a PR of its own.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "26"
+
+      - name: Composer audit (lock file)
+        run: composer audit --locked --no-interaction
+
+      - name: npm audit (high and critical)
+        run: npm audit --audit-level=high
