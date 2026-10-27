@@ -560,16 +560,16 @@ const resendMessage = async (msg) => {
 
         <!-- Beside the bubble, Messenger-style: to the right of theirs, to the
              left of ours (the row is reversed for outbound). -->
+        <!-- The trigger renders its own <button>: with as-child inside this
+             v-for, radix keeps the slotted button's classes on the first
+             row only. -->
         <DropdownMenu v-if="canReply(msg)" :modal="false">
-            <DropdownMenuTrigger as-child>
-                <button
-                    type="button"
-                    class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-full transition-colors"
-                    title="Message actions"
-                    data-testid="message-actions"
-                >
-                    <MoreHorizontal class="h-4 w-4" />
-                </button>
+            <DropdownMenuTrigger
+                class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-full transition-colors"
+                title="Message actions"
+                data-testid="message-actions"
+            >
+                <MoreHorizontal class="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent :align="isOutbound(msg) ? 'end' : 'start'">
                 <DropdownMenuItem
