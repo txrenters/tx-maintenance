@@ -121,11 +121,14 @@ const sourceMessages = computed(() =>
 );
 
 /** The outside number a reply to this message should go to. */
-const replyNumber = (msg) =>
-    isOutbound(msg) ? msg?.receiver_number : msg?.sender_number;
+const replyNumber = (msg) => msg?.sender_number;
 
+/** Only their bubbles: a reply to one of ours would be a reply to us. */
 const canReply = (msg) =>
-    props.replyable && !msg?.__pending && Boolean(replyNumber(msg));
+    props.replyable &&
+    !isOutbound(msg) &&
+    !msg?.__pending &&
+    Boolean(replyNumber(msg));
 
 const replyTo = (msg) => {
     emit("reply", { number: replyNumber(msg), message: msg });
@@ -557,11 +560,9 @@ const resendMessage = async (msg) => {
             </button>
         </div>
 
-        <!-- Beside the bubble, Messenger-style: to the right of theirs, to the
-             left of ours (the row is reversed for outbound). -->
-        <!-- The trigger renders its own <button>: with as-child inside this
-             v-for, radix keeps the slotted button's classes on the first
-             row only. -->
+        <!-- Beside their bubble, Messenger-style. The trigger renders its own
+             <button>: with as-child inside this v-for, radix keeps the slotted
+             button's classes on the first row only. -->
         <DropdownMenu v-if="canReply(msg)" :modal="false">
             <DropdownMenuTrigger
                 class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full transition-colors"
@@ -570,7 +571,7 @@ const resendMessage = async (msg) => {
             >
                 <Reply class="h-5 w-5" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent :align="isOutbound(msg) ? 'end' : 'start'">
+            <DropdownMenuContent align="start">
                 <DropdownMenuItem
                     class="gap-2 text-xs"
                     data-testid="message-reply"
