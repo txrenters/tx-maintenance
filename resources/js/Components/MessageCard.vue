@@ -6,6 +6,7 @@ import {
     Clock3,
     FileIcon,
     Loader2,
+    Reply,
     RotateCw,
     Send,
     XIcon,
@@ -14,6 +15,12 @@ import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "./ui/toast";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import {
     friendlyTwilioError,
     isRetryableTwilioError,
@@ -33,7 +40,15 @@ const props = defineProps({
     showDelete: { type: Boolean, default: true },
     /** Accepted for API compatibility; the To/From numbers always render. */
     showNumbers: { type: Boolean, default: false },
+    /**
+     * Shows a reply button beside each of their bubbles whose Reply item emits
+     * the number that message came from. Opt-in: only the Inbox, where two
+     * numbers can share one thread, needs it.
+     */
+    replyable: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(["reply"]);
 
 const TIMEZONE = "America/Chicago";
 
@@ -104,6 +119,20 @@ const participantLabel = (number) => {
 const sourceMessages = computed(() =>
     Array.isArray(props.messages) ? props.messages : [],
 );
+
+/** The outside number a reply to this message should go to. */
+const replyNumber = (msg) => msg?.sender_number;
+
+/** Only their bubbles: a reply to one of ours would be a reply to us. */
+const canReply = (msg) =>
+    props.replyable &&
+    !isOutbound(msg) &&
+    !msg?.__pending &&
+    Boolean(replyNumber(msg));
+
+const replyTo = (msg) => {
+    emit("reply", { number: replyNumber(msg), message: msg });
+};
 
 /**
  * An inbound iPhone tapback ("Liked \"…\"") renders as a compact reaction
@@ -530,5 +559,29 @@ const resendMessage = async (msg) => {
                 }}
             </button>
         </div>
+
+        <!-- Beside their bubble, Messenger-style. The trigger renders its own
+             <button>: with as-child inside this v-for, radix keeps the slotted
+             button's classes on the first row only. -->
+        <DropdownMenu v-if="canReply(msg)" :modal="false">
+            <DropdownMenuTrigger
+                class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full transition-colors"
+                title="Reply to this number"
+                data-testid="message-actions"
+            >
+                <Reply class="h-5 w-5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                    class="gap-2 text-xs"
+                    data-testid="message-reply"
+                    @select="replyTo(msg)"
+                >
+                    <Reply class="h-3.5 w-3.5" />
+                    Reply to
+                    {{ participantLabel(replyNumber(msg)) || replyNumber(msg) }}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     </div>
 </template>

@@ -186,7 +186,12 @@ const insert = (text) => {
     nextTick(autoResize);
 };
 
-defineExpose({ reset, insert });
+/** Put the cursor in the box, e.g. after the coordinator picks Reply. */
+const focus = () => {
+    nextTick(() => textareaEl()?.focus());
+};
+
+defineExpose({ reset, insert, focus });
 </script>
 
 <template>
