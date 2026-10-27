@@ -356,58 +356,25 @@ const resendMessage = async (msg) => {
                 <XIcon class="w-3 h-3" />
             </button>
 
-            <div class="mb-1 flex items-start justify-between gap-3">
-                <p
-                    class="text-xs"
-                    :class="isOutbound(msg) ? 'text-white/70' : 'text-gray-500'"
+            <p
+                class="text-xs mb-1"
+                :class="isOutbound(msg) ? 'text-white/70' : 'text-gray-500'"
+            >
+                To:
+                <!-- A client's message goes to one of our numbers; name the
+                     role instead of printing which line it came in on. -->
+                <span
+                    v-if="!isOutbound(msg)"
+                    :title="msg.receiver_number"
+                    >Work Order Coordinator</span
                 >
-                    To:
-                    <!-- A client's message goes to one of our numbers; name the
-                         role instead of printing which line it came in on. -->
-                    <span
-                        v-if="!isOutbound(msg)"
-                        :title="msg.receiver_number"
-                        >Work Order Coordinator</span
-                    >
-                    <template v-else>
-                        <template v-if="participantLabel(msg.receiver_number)">
-                            {{ participantLabel(msg.receiver_number) }} ·
-                        </template>
-                        {{ msg.receiver_number }}
+                <template v-else>
+                    <template v-if="participantLabel(msg.receiver_number)">
+                        {{ participantLabel(msg.receiver_number) }} ·
                     </template>
-                </p>
-                <DropdownMenu v-if="canReply(msg)" :modal="false">
-                    <DropdownMenuTrigger as-child>
-                        <button
-                            type="button"
-                            class="-mr-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
-                            :class="
-                                isOutbound(msg)
-                                    ? 'text-white/70 hover:bg-white/20 hover:text-white'
-                                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
-                            "
-                            title="Message actions"
-                            data-testid="message-actions"
-                        >
-                            <MoreHorizontal class="h-3.5 w-3.5" />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                            class="gap-2 text-xs"
-                            data-testid="message-reply"
-                            @select="replyTo(msg)"
-                        >
-                            <Reply class="h-3.5 w-3.5" />
-                            Reply to
-                            {{
-                                participantLabel(replyNumber(msg)) ||
-                                replyNumber(msg)
-                            }}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
+                    {{ msg.receiver_number }}
+                </template>
+            </p>
             <span
                 v-if="!tapbackOf(msg)"
                 class="text-md py-1 whitespace-pre-line break-words [overflow-wrap:anywhere]"
@@ -590,5 +557,31 @@ const resendMessage = async (msg) => {
                 }}
             </button>
         </div>
+
+        <!-- Beside the bubble, Messenger-style: to the right of theirs, to the
+             left of ours (the row is reversed for outbound). -->
+        <DropdownMenu v-if="canReply(msg)" :modal="false">
+            <DropdownMenuTrigger as-child>
+                <button
+                    type="button"
+                    class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-full transition-colors"
+                    title="Message actions"
+                    data-testid="message-actions"
+                >
+                    <MoreHorizontal class="h-4 w-4" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent :align="isOutbound(msg) ? 'end' : 'start'">
+                <DropdownMenuItem
+                    class="gap-2 text-xs"
+                    data-testid="message-reply"
+                    @select="replyTo(msg)"
+                >
+                    <Reply class="h-3.5 w-3.5" />
+                    Reply to
+                    {{ participantLabel(replyNumber(msg)) || replyNumber(msg) }}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     </div>
 </template>
