@@ -24,8 +24,10 @@ import {
     KeyRound,
     Loader2,
     MessagesSquare,
+    Reply as ReplyIcon,
     Search,
     Wrench,
+    X,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -54,6 +56,51 @@ const threadLoading = ref(false);
 const sending = ref(false);
 const messageBody = ref("");
 const composer = ref(null);
+
+/**
+ * A number the coordinator picked with Reply on one bubble. Two numbers (an
+ * owner's two phones, say) can share a thread, and the server's default is
+ * whoever wrote in last — so a reply to the older message needs this
+ * override. Cleared on send, on clearing the chip, and on switching threads.
+ */
+const replyTarget = ref(null);
+
+const phoneKey = (value) => {
+    const digits = String(value ?? "").replace(/\D+/g, "");
+    return digits.length >= 10 ? digits.slice(-10) : "";
+};
+
+/** "Dana Owner (Owner) · +1…" when the thread knows the number, else the number. */
+const labelFor = (number) => {
+    const participant = thread.value?.participants?.[phoneKey(number)];
+    if (!participant?.name) return number;
+
+    return participant.role
+        ? `${participant.name} (${participant.role}) · ${number}`
+        : `${participant.name} · ${number}`;
+};
+
+/** The number the Send button will text. */
+const recipientNumber = computed(
+    () => replyTarget.value?.number ?? thread.value?.recipient_number ?? null
+);
+
+const replyExcerpt = computed(() => {
+    const text = String(replyTarget.value?.message?.message ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+});
+
+const replyToMessage = ({ number, message }) => {
+    replyTarget.value = { number, message };
+    composer.value?.focus();
+};
+
+const clearReplyTarget = () => {
+    replyTarget.value = null;
+};
 
 const PARTY_ICON = {
     tenant: KeyRound,
@@ -278,6 +325,7 @@ const openThread = async (item) => {
     detachedThread.value = item;
     threadLoading.value = true;
     thread.value = null;
+    replyTarget.value = null;
 
     try {
         const { data } = await axios.get(route("inbox.thread"), {
@@ -330,7 +378,7 @@ watch(
 );
 
 const sendMessage = ({ text, files }) => {
-    const recipient = thread.value?.recipient_number;
+    const recipient = recipientNumber.value;
 
     if (!recipient) {
         toast({
@@ -368,6 +416,7 @@ const sendMessage = ({ text, files }) => {
                 description: "Message sent. Delivery may take a moment.",
             });
             composer.value?.reset();
+            replyTarget.value = null;
             refreshThread();
         },
         onError: (errors) => {
@@ -670,12 +719,57 @@ const sendMessage = ({ text, files }) => {
                             :messages="thread.messages"
                             :sender="thread.woc_phone_number"
                             :participants="thread.participants"
+                            replyable
+                            @reply="replyToMessage"
                         />
                         <div ref="bottomAnchor" class="h-px" />
                     </ScrollArea>
                 </div>
 
                 <div class="border-t p-3">
+                    <!-- Where the Send goes. Reply on a bubble swaps it; the
+                         X returns to the thread's default. -->
+                    <div
+                        v-if="thread"
+                        class="mb-2 flex min-w-0 items-center gap-2 text-xs"
+                        data-testid="reply-target"
+                    >
+                        <template v-if="replyTarget">
+                            <span
+                                class="bg-primary/10 text-primary flex min-w-0 items-center gap-1.5 rounded-full py-0.5 pl-2.5 pr-1"
+                            >
+                                <ReplyIcon class="h-3 w-3 shrink-0" />
+                                <span class="truncate">
+                                    Replying to {{ labelFor(replyTarget.number) }}
+                                    <span
+                                        v-if="replyExcerpt"
+                                        class="text-primary/70 italic"
+                                    >
+                                        · “{{ replyExcerpt }}”
+                                    </span>
+                                </span>
+                                <button
+                                    type="button"
+                                    class="hover:bg-primary/20 flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
+                                    title="Reply to the latest number instead"
+                                    data-testid="reply-target-clear"
+                                    @click="clearReplyTarget"
+                                >
+                                    <X class="h-3 w-3" />
+                                </button>
+                            </span>
+                        </template>
+                        <span v-else class="text-muted-foreground truncate">
+                            To:
+                            <span
+                                v-if="recipientNumber"
+                                class="text-foreground font-medium"
+                            >
+                                {{ labelFor(recipientNumber) }}
+                            </span>
+                            <span v-else>no number on file</span>
+                        </span>
+                    </div>
                     <MessageComposer
                         ref="composer"
                         v-model="messageBody"

@@ -6,6 +6,8 @@ import {
     Clock3,
     FileIcon,
     Loader2,
+    MoreHorizontal,
+    Reply,
     RotateCw,
     Send,
     XIcon,
@@ -14,6 +16,12 @@ import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "./ui/toast";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import {
     friendlyTwilioError,
     isRetryableTwilioError,
@@ -33,7 +41,15 @@ const props = defineProps({
     showDelete: { type: Boolean, default: true },
     /** Accepted for API compatibility; the To/From numbers always render. */
     showNumbers: { type: Boolean, default: false },
+    /**
+     * Shows a per-message menu whose Reply item emits the outside number that
+     * message came from (or, for one of ours, went to). Opt-in: only the Inbox,
+     * where two numbers can share one thread, needs it.
+     */
+    replyable: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(["reply"]);
 
 const TIMEZONE = "America/Chicago";
 
@@ -104,6 +120,17 @@ const participantLabel = (number) => {
 const sourceMessages = computed(() =>
     Array.isArray(props.messages) ? props.messages : [],
 );
+
+/** The outside number a reply to this message should go to. */
+const replyNumber = (msg) =>
+    isOutbound(msg) ? msg?.receiver_number : msg?.sender_number;
+
+const canReply = (msg) =>
+    props.replyable && !msg?.__pending && Boolean(replyNumber(msg));
+
+const replyTo = (msg) => {
+    emit("reply", { number: replyNumber(msg), message: msg });
+};
 
 /**
  * An inbound iPhone tapback ("Liked \"…\"") renders as a compact reaction
@@ -329,25 +356,58 @@ const resendMessage = async (msg) => {
                 <XIcon class="w-3 h-3" />
             </button>
 
-            <p
-                class="text-xs mb-1"
-                :class="isOutbound(msg) ? 'text-white/70' : 'text-gray-500'"
-            >
-                To:
-                <!-- A client's message goes to one of our numbers; name the
-                     role instead of printing which line it came in on. -->
-                <span
-                    v-if="!isOutbound(msg)"
-                    :title="msg.receiver_number"
-                    >Work Order Coordinator</span
+            <div class="mb-1 flex items-start justify-between gap-3">
+                <p
+                    class="text-xs"
+                    :class="isOutbound(msg) ? 'text-white/70' : 'text-gray-500'"
                 >
-                <template v-else>
-                    <template v-if="participantLabel(msg.receiver_number)">
-                        {{ participantLabel(msg.receiver_number) }} ·
+                    To:
+                    <!-- A client's message goes to one of our numbers; name the
+                         role instead of printing which line it came in on. -->
+                    <span
+                        v-if="!isOutbound(msg)"
+                        :title="msg.receiver_number"
+                        >Work Order Coordinator</span
+                    >
+                    <template v-else>
+                        <template v-if="participantLabel(msg.receiver_number)">
+                            {{ participantLabel(msg.receiver_number) }} ·
+                        </template>
+                        {{ msg.receiver_number }}
                     </template>
-                    {{ msg.receiver_number }}
-                </template>
-            </p>
+                </p>
+                <DropdownMenu v-if="canReply(msg)" :modal="false">
+                    <DropdownMenuTrigger as-child>
+                        <button
+                            type="button"
+                            class="-mr-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors"
+                            :class="
+                                isOutbound(msg)
+                                    ? 'text-white/70 hover:bg-white/20 hover:text-white'
+                                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+                            "
+                            title="Message actions"
+                            data-testid="message-actions"
+                        >
+                            <MoreHorizontal class="h-3.5 w-3.5" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            class="gap-2 text-xs"
+                            data-testid="message-reply"
+                            @select="replyTo(msg)"
+                        >
+                            <Reply class="h-3.5 w-3.5" />
+                            Reply to
+                            {{
+                                participantLabel(replyNumber(msg)) ||
+                                replyNumber(msg)
+                            }}
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
             <span
                 v-if="!tapbackOf(msg)"
                 class="text-md py-1 whitespace-pre-line break-words [overflow-wrap:anywhere]"
