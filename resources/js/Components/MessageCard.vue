@@ -6,7 +6,6 @@ import {
     Clock3,
     FileIcon,
     Loader2,
-    MoreHorizontal,
     Reply,
     RotateCw,
     Send,
@@ -565,11 +564,11 @@ const resendMessage = async (msg) => {
              row only. -->
         <DropdownMenu v-if="canReply(msg)" :modal="false">
             <DropdownMenuTrigger
-                class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-full transition-colors"
-                title="Message actions"
+                class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full transition-colors"
+                title="Reply to this number"
                 data-testid="message-actions"
             >
-                <MoreHorizontal class="h-4 w-4" />
+                <Reply class="h-5 w-5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent :align="isOutbound(msg) ? 'end' : 'start'">
                 <DropdownMenuItem
