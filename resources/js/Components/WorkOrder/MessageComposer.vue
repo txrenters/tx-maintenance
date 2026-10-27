@@ -186,9 +186,13 @@ const insert = (text) => {
     nextTick(autoResize);
 };
 
-/** Put the cursor in the box, e.g. after the coordinator picks Reply. */
+/**
+ * Put the cursor in the box, e.g. after the coordinator picks Reply. The
+ * extra tick lets the menu that was just picked from finish closing first,
+ * so it does not move focus back to its trigger afterwards.
+ */
 const focus = () => {
-    nextTick(() => textareaEl()?.focus());
+    nextTick(() => setTimeout(() => textareaEl()?.focus(), 0));
 };
 
 defineExpose({ reset, insert, focus });

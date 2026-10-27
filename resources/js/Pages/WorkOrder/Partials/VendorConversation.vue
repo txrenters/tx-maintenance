@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, computed, nextTick } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { Send } from "lucide-vue-next";
@@ -203,10 +203,42 @@ watch(selectedVendor, (newVendor) => {
         const foundVendor = selectableVendors.value.find(
             (vendor) => vendor.id == newVendor
         );
+
+        // A number picked with Reply already belongs to this vendor; keep it
+        // as typed rather than swapping in the record's formatting.
+        if (
+            foundVendor &&
+            phoneKey(foundVendor.user?.phone) === phoneKey(vendor_phone_number.value)
+        ) {
+            scrollToBottom(true);
+            return;
+        }
+
         vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
     }
     scrollToBottom(true);
 });
+
+/**
+ * Reply on one of the vendor's bubbles: the To box takes that bubble's number
+ * exactly as it texted in. The thread on screen already belongs to the
+ * selected vendor, so the selection only changes when the number says so.
+ */
+const replyToBubble = ({ number }) => {
+    const match = (selectableVendors.value ?? []).find(
+        (vendor) =>
+            phoneKey(vendor.user?.phone) &&
+            phoneKey(vendor.user?.phone) === phoneKey(number)
+    );
+
+    vendor_phone_number.value = number;
+
+    if (match) {
+        selectedVendor.value = String(match.id);
+    }
+
+    nextTick(() => composer.value?.focus());
+};
 
 // Preselect the only vendor so their thread shows by default; leave the tab
 // empty when there are multiple vendors so threads never blur together. When
@@ -408,6 +440,8 @@ const notifyAssignment = async () => {
                     :messages="displayedMessages"
                     :sender="woc_phone_number"
                     :participants="participants"
+                    replyable
+                    @reply="replyToBubble"
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, computed, nextTick } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { DateTime } from "luxon";
@@ -24,7 +24,7 @@ import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
 import PortalLinkButton from "@/Components/WorkOrder/PortalLinkButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
-import { buildParticipants } from "@/utils/conversation";
+import { buildParticipants, phoneKey } from "@/utils/conversation";
 import { useThreadScroll } from "@/composables/useThreadScroll";
 
 const props = defineProps({
@@ -71,11 +71,37 @@ const participants = computed(() =>
     ])
 );
 
+/**
+ * Reply on one of the owner's bubbles: the To box takes that bubble's number
+ * exactly as it texted in (an owner's second phone, say) and the owner it
+ * belongs to is selected.
+ */
+const replyToBubble = ({ number }) => {
+    const match = (props.workOrderOwners ?? []).find(
+        (owner) => phoneKey(owner.phone) && phoneKey(owner.phone) === phoneKey(number)
+    );
+
+    owner_phone_number.value = number;
+
+    if (match) {
+        selectedOwner.value = String(match.id);
+    }
+
+    nextTick(() => composer.value?.focus());
+};
+
 watch(selectedOwner, (newOwner) => {
     if (newOwner) {
         const foundOwner = props.workOrderOwners.find(
             (owner) => owner.id == newOwner
         );
+
+        // A number picked with Reply already belongs to this owner; keep it
+        // as typed rather than swapping in the record's formatting.
+        if (foundOwner && phoneKey(foundOwner.phone) === phoneKey(owner_phone_number.value)) {
+            return;
+        }
+
         owner_phone_number.value = foundOwner ? foundOwner.phone : "";
     }
 });
@@ -397,6 +423,8 @@ watch(
                     :messages="ownerConversation"
                     :sender="woc_phone_number"
                     :participants="participants"
+                    replyable
+                    @reply="replyToBubble"
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>
