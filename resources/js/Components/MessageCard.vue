@@ -41,9 +41,9 @@ const props = defineProps({
     /** Accepted for API compatibility; the To/From numbers always render. */
     showNumbers: { type: Boolean, default: false },
     /**
-     * Shows a per-message menu whose Reply item emits the outside number that
-     * message came from (or, for one of ours, went to). Opt-in: only the Inbox,
-     * where two numbers can share one thread, needs it.
+     * Shows a reply button beside each of their bubbles whose Reply item emits
+     * the number that message came from. Opt-in: only the Inbox, where two
+     * numbers can share one thread, needs it.
      */
     replyable: { type: Boolean, default: false },
 });
