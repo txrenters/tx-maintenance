@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, computed, nextTick } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
@@ -21,7 +21,7 @@ import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
 import PortalLinkButton from "@/Components/WorkOrder/PortalLinkButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
-import { buildParticipants } from "@/utils/conversation";
+import { buildParticipants, phoneKey } from "@/utils/conversation";
 import { useThreadScroll } from "@/composables/useThreadScroll";
 
 const { toast } = useToast();
@@ -119,9 +119,39 @@ watch(selectedTenant, (newTenant) => {
         const foundTenant = props.workOrderTenants.find(
             (tenant) => tenant.id == newTenant
         );
+
+        // A number picked with Reply already belongs to this tenant; keep it
+        // as typed rather than swapping in the record's formatting.
+        if (
+            foundTenant &&
+            phoneKey(foundTenant.mobile_phone) === phoneKey(tenant_phone_number.value)
+        ) {
+            return;
+        }
+
         tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
     }
 });
+
+/**
+ * Reply on one of the tenant's bubbles: the To box takes that bubble's number
+ * exactly as it texted in and the tenant it belongs to is selected.
+ */
+const replyToBubble = ({ number }) => {
+    const match = (props.workOrderTenants ?? []).find(
+        (tenant) =>
+            phoneKey(tenant.mobile_phone) &&
+            phoneKey(tenant.mobile_phone) === phoneKey(number)
+    );
+
+    tenant_phone_number.value = number;
+
+    if (match) {
+        selectedTenant.value = String(match.id);
+    }
+
+    nextTick(() => composer.value?.focus());
+};
 
 // Preselect the first tenant on the work order. Never the Requested By
 // contact's number: that is often the owner, staff or a technician.
@@ -327,6 +357,8 @@ watch(
                     :messages="tenantConversation"
                     :sender="woc_phone_number"
                     :participants="participants"
+                    replyable
+                    @reply="replyToBubble"
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>

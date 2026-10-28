@@ -130,8 +130,20 @@ const canReply = (msg) =>
     !msg?.__pending &&
     Boolean(replyNumber(msg));
 
+// After Reply is picked the parent moves focus to its composer; the menu
+// would otherwise hand focus back to the trigger as it closes.
+const replyPicked = ref(false);
+
 const replyTo = (msg) => {
+    replyPicked.value = true;
     emit("reply", { number: replyNumber(msg), message: msg });
+};
+
+const keepFocusAfterReply = (event) => {
+    if (replyPicked.value) {
+        event.preventDefault();
+        replyPicked.value = false;
+    }
 };
 
 /**
@@ -562,8 +574,10 @@ const resendMessage = async (msg) => {
 
         <!-- Beside their bubble, Messenger-style. The trigger renders its own
              <button>: with as-child inside this v-for, radix keeps the slotted
-             button's classes on the first row only. -->
-        <DropdownMenu v-if="canReply(msg)" :modal="false">
+             button's classes on the first row only. The menu stays modal: a
+             non-modal menu's items cannot be clicked inside the work order
+             dialog, which disables pointer events outside its own layers. -->
+        <DropdownMenu v-if="canReply(msg)">
             <DropdownMenuTrigger
                 class="text-muted-foreground hover:bg-muted hover:text-foreground mx-1 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-full transition-colors"
                 title="Reply to this number"
@@ -571,7 +585,10 @@ const resendMessage = async (msg) => {
             >
                 <Reply class="h-5 w-5" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
+            <DropdownMenuContent
+                align="start"
+                @close-auto-focus="keepFocusAfterReply"
+            >
                 <DropdownMenuItem
                     class="gap-2 text-xs"
                     data-testid="message-reply"
