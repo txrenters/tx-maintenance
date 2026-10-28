@@ -11,6 +11,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Rules\UploadedMediaFile;
 use App\Services\Images\AttachmentRotator;
+use App\Services\Images\WorkOrderDocumentRotator;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -215,7 +216,7 @@ class AttachmentsController extends Controller
      * Information.pdf") for inline viewing/download. The bytes are not stored
      * locally, so they are fetched from PropertyWare on demand.
      */
-    public function downloadDocument(WorkOrderDocuments $workOrderDocument, PropertyWareService $propertyWareService)
+    public function downloadDocument(WorkOrderDocuments $workOrderDocument, PropertyWareService $propertyWareService, WorkOrderDocumentRotator $rotator)
     {
         // Re-resolve the parent work order through the (scoped) model so a user can
         // only fetch documents for work orders they're allowed to see. WorkOrderScope
@@ -260,12 +261,20 @@ class AttachmentsController extends Controller
 
         $disposition = $mime === 'application/octet-stream' ? 'attachment' : 'inline';
 
+        // A remembered turn is applied on the way out, so the tile, the viewer
+        // and the download all show the photo the way staff left it.
+        $content = $file['content'];
+
+        if (str_starts_with($mime, 'image/') && $workOrderDocument->rotation) {
+            $content = $rotator->apply((string) $content, (int) $workOrderDocument->rotation);
+        }
+
         // The filename is external (PropertyWare). Strip path separators and any
         // control/quote characters so it can't break out of the header or inject one.
         $fileName = preg_replace('/[\x00-\x1f"\\\\\/]/', '', basename($workOrderDocument->file_name ?: 'document'));
         $fileName = $fileName !== '' ? $fileName : 'document';
 
-        return response($file['content'], 200)
+        return response($content, 200)
             ->header('Content-Type', $mime)
             ->header('X-Content-Type-Options', 'nosniff')
             ->header('Content-Disposition', $disposition.'; filename="'.$fileName.'"');
@@ -294,6 +303,32 @@ class AttachmentsController extends Controller
 
             return redirect()->back()->withErrors(['direction' => 'The photo could not be rotated. Please try again.']);
         }
+
+        return redirect()->back()->with('success', 'Photo rotated.');
+    }
+
+    /**
+     * Remember a quarter turn for a PropertyWare-synced photo. The bytes stay in
+     * PropertyWare; the turn is applied each time the document is streamed.
+     */
+    public function rotateDocument(Request $request, WorkOrderDocuments $workOrderDocument, WorkOrderDocumentRotator $rotator)
+    {
+        // Same scoping as downloadDocument: a user may only act on documents of
+        // work orders they can see.
+        abort_unless(
+            WorkOrder::whereKey($workOrderDocument->work_order_id)->exists(),
+            404
+        );
+
+        $validated = $request->validate([
+            'direction' => ['required', Rule::in([AttachmentRotator::CLOCKWISE, AttachmentRotator::COUNTERCLOCKWISE])],
+        ]);
+
+        if (! $rotator->canRotate($workOrderDocument)) {
+            return redirect()->back()->withErrors(['direction' => 'Only photos can be rotated.']);
+        }
+
+        $rotator->turn($workOrderDocument, $validated['direction']);
 
         return redirect()->back()->with('success', 'Photo rotated.');
     }

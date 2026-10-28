@@ -321,6 +321,7 @@ Route::middleware([
     Route::post('/attachments/{attachment}/rotate', [AttachmentsController::class, 'rotate'])->name('api.attachments.rotate');
 
     Route::get('/work-order-documents/{workOrderDocument}/download', [AttachmentsController::class, 'downloadDocument'])->name('api.work_order_documents.download');
+    Route::post('/work-order-documents/{workOrderDocument}/rotate', [AttachmentsController::class, 'rotateDocument'])->name('api.work_order_documents.rotate');
 
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
     Route::post('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'store'])->name('invoices.posted.store');

@@ -11,6 +11,14 @@ class WorkOrderDocuments extends Model
     protected $guarded = [];
 
     /**
+     * Clockwise degrees (0/90/180/270) applied every time the document is
+     * streamed from PropertyWare; see WorkOrderDocumentRotator.
+     */
+    protected $casts = [
+        'rotation' => 'integer',
+    ];
+
+    /**
      * Whether a PropertyWare document with this file name is already represented
      * for the work order — either as a previously-pulled document or as one of
      * our own uploaded attachments. Used by the document pull to avoid storing
