@@ -28,4 +28,15 @@ interface ImageProcessor
      * @return string|null encoded WebP bytes, or null when the image cannot be processed
      */
     public function thumbnail(string $absolutePath, int $maxWidth, int $maxHeight): ?string;
+
+    /**
+     * Turn the image a quarter or half turn clockwise, baking any EXIF
+     * orientation into the pixels first so the result matches what the
+     * browser was showing.
+     *
+     * @param  int  $degreesClockwise  90, 180 or 270
+     * @return string|null bytes re-encoded in the image's own format, or null when
+     *                     the image cannot be processed
+     */
+    public function rotate(string $absolutePath, int $degreesClockwise): ?string;
 }

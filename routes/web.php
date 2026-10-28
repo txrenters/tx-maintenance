@@ -318,6 +318,7 @@ Route::middleware([
     Route::post('/attachments/multiple', [AttachmentsController::class, 'multiple_store'])->name('api.attachments.multiple_store');
 
     Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
+    Route::post('/attachments/{attachment}/rotate', [AttachmentsController::class, 'rotate'])->name('api.attachments.rotate');
 
     Route::get('/work-order-documents/{workOrderDocument}/download', [AttachmentsController::class, 'downloadDocument'])->name('api.work_order_documents.download');
 

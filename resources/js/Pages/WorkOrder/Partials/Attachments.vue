@@ -165,20 +165,30 @@ const sectionFor = (file) => {
     return attachmentFile.value;
 };
 
-const handleExpandImage = (imageSelected) => {
-    const photos = sectionFor(imageSelected).filter((file) =>
+const sectionPhotos = (section) =>
+    sectionFor({ type: section }).filter((file) =>
         String(file.filetype || "").startsWith("image/")
     );
-    galleryImages.value = photos.map((file) => ({
-        id: file.id,
-        url: file.attachment_url,
-        name: file.title,
-        downloadName: attachmentDownloadName(
-            file.title,
-            file.filename,
-            file.filetype
-        ),
-    }));
+
+const toSlide = (file) => ({
+    id: file.id,
+    url: file.attachment_url,
+    name: file.title,
+    downloadName: attachmentDownloadName(
+        file.title,
+        file.filename,
+        file.filetype
+    ),
+});
+
+// Remembered so the slides can be rebuilt from fresh props after a rotate.
+const gallerySection = ref("attachment");
+const galleryRotationPreview = ref(0);
+
+const handleExpandImage = (imageSelected) => {
+    gallerySection.value = imageSelected.type;
+    const photos = sectionPhotos(imageSelected.type);
+    galleryImages.value = photos.map(toSlide);
     galleryIndex.value = Math.max(
         0,
         photos.findIndex((file) => file.id === imageSelected.id)
@@ -188,11 +198,63 @@ const handleExpandImage = (imageSelected) => {
     openGallery.value = true;
 };
 
-// Delete acts on whichever photo is on screen.
+// Delete and Rotate act on whichever photo is on screen.
 watch(galleryIndex, (index) => {
     const photo = galleryImages.value[index];
     if (photo) deleteFileForm.id = photo.id;
+    galleryRotationPreview.value = 0;
 });
+
+// Rotate saves the turn to the file itself (new filename, new thumbnail), so
+// the photo stays upright for everyone from then on. The picture turns on
+// screen right away and the saved copy replaces it when the refetch lands.
+const rotateForm = useForm({ direction: "" });
+
+const handleRotateImage = (direction) => {
+    const photo = galleryImages.value[galleryIndex.value];
+    if (!photo || rotateForm.processing) return;
+
+    galleryRotationPreview.value += direction === "clockwise" ? 90 : -90;
+    rotateForm.direction = direction;
+    rotateForm.post(route("api.attachments.rotate", photo.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            handleFetchAttachment();
+        },
+        onError: (errors) => {
+            galleryRotationPreview.value = 0;
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    errors?.direction ||
+                    "The photo could not be rotated. Please try again!",
+            });
+        },
+    });
+};
+
+// When the refreshed list arrives, swap the slides for the saved files and
+// drop the on-screen preview — the new file already has the turn baked in.
+watch(
+    () => props.workOrderAttachments,
+    () => {
+        if (!openGallery.value || !galleryCanDelete.value) return;
+        const current = galleryImages.value[galleryIndex.value];
+        const photos = sectionPhotos(gallerySection.value);
+        if (!photos.length) {
+            openGallery.value = false;
+            return;
+        }
+        galleryImages.value = photos.map(toSlide);
+        galleryIndex.value = Math.max(
+            0,
+            photos.findIndex((file) => file.id === current?.id)
+        );
+        galleryRotationPreview.value = 0;
+    }
+);
 
 const openDeleteModal = ref(false);
 const handleDeleteImage = (imageSelected) => {
@@ -493,6 +555,10 @@ function handleFiles(event) {
             v-model:open="openGallery"
             v-model:index="galleryIndex"
             :images="galleryImages"
+            :rotatable="galleryCanDelete"
+            :rotating="rotateForm.processing"
+            :rotation-preview="galleryRotationPreview"
+            @rotate="handleRotateImage"
         >
             <template v-if="galleryCanDelete" #footer>
                 <Button

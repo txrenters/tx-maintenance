@@ -10,11 +10,13 @@ use App\Models\Attachments;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Rules\UploadedMediaFile;
+use App\Services\Images\AttachmentRotator;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AttachmentsController extends Controller
@@ -267,6 +269,33 @@ class AttachmentsController extends Controller
             ->header('Content-Type', $mime)
             ->header('X-Content-Type-Options', 'nosniff')
             ->header('Content-Disposition', $disposition.'; filename="'.$fileName.'"');
+    }
+
+    /**
+     * Turn a photo a quarter turn. The rotated file replaces the original
+     * (under a fresh name) and the thumbnail is rebuilt, so every tile, viewer
+     * and portal shows it the right way up from now on.
+     */
+    public function rotate(Request $request, Attachments $attachment, AttachmentRotator $rotator)
+    {
+        $validated = $request->validate([
+            'direction' => ['required', Rule::in([AttachmentRotator::CLOCKWISE, AttachmentRotator::COUNTERCLOCKWISE])],
+        ]);
+
+        if (! $rotator->canRotate($attachment)) {
+            return redirect()->back()->withErrors(['direction' => 'Only photos can be rotated.']);
+        }
+
+        if (! $rotator->rotate($attachment, $validated['direction'])) {
+            Log::warning('Attachment rotation failed', [
+                'attachment_id' => $attachment->id,
+                'user_id' => auth()->id(),
+            ]);
+
+            return redirect()->back()->withErrors(['direction' => 'The photo could not be rotated. Please try again.']);
+        }
+
+        return redirect()->back()->with('success', 'Photo rotated.');
     }
 
     /**
