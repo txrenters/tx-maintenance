@@ -123,7 +123,7 @@ Schedule::command('tasks:auto-complete-triggers')
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
     ->dailyAt('10:00')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 // Last reminder for TBP visits happening tomorrow. Runs earlier than the
@@ -131,24 +131,24 @@ Schedule::command('jobs:send-reminders')
 Schedule::command('jobs:send-reminders --days=1')
     ->timezone('America/Chicago')
     ->dailyAt('08:00')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 Schedule::command('vendors:followup-unscheduled')
     ->timezone('America/Chicago')
     ->dailyAt('10:05')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 Schedule::command('twilio:sync-phone-numbers')
     ->timezone('America/Chicago')
     ->dailyAt('01:30')
-    ->withoutOverlapping()
+    ->withoutOverlapping(30)
     ->runInBackground();
 
 Schedule::command('twilio:import-inbound-messages')
     ->everyFiveMinutes()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 // Tenant-easy-fix photo links: initial sends + capped reminders. Gated off by
@@ -164,7 +164,7 @@ Schedule::command('tenant-portal:send-links')
 Schedule::command('hoa:send-reminders')
     ->timezone('America/Chicago')
     ->dailyAt('10:10')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 // Tenant vendor-contact follow-up: daily text to the tenant, starting the day
@@ -174,7 +174,7 @@ Schedule::command('hoa:send-reminders')
 Schedule::command('tenants:followup-vendor-contact')
     ->timezone('America/Chicago')
     ->dailyAt('10:15')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 // Owner appointment follow-up: daily text to each owner, starting the day after
@@ -185,7 +185,7 @@ Schedule::command('tenants:followup-vendor-contact')
 Schedule::command('owners:followup-schedule')
     ->timezone('America/Chicago')
     ->dailyAt('10:20')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 // Owner approval reminder: daily email to each owner while PropertyWare still
@@ -196,7 +196,7 @@ Schedule::command('owners:followup-schedule')
 Schedule::command('owners:nudge-approval')
     ->timezone('America/Chicago')
     ->dailyAt('10:22')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 // Tenant appointment reminder: daily text to the tenant, starting the day after
@@ -206,17 +206,17 @@ Schedule::command('owners:nudge-approval')
 Schedule::command('tenants:followup-schedule')
     ->timezone('America/Chicago')
     ->dailyAt('10:25')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
 
 Schedule::command('emails:sync-replies')
     ->everyThreeMinutes()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 Schedule::command('tenant-emails:sync-replies')
     ->everyThreeMinutes()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 // Vendors who email an invoice to invoices@ get an automatic reply pointing at
@@ -224,12 +224,12 @@ Schedule::command('tenant-emails:sync-replies')
 // until that is on this is a no-op.
 Schedule::command('invoices:auto-reply')
     ->everyThreeMinutes()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 Schedule::command('owner-emails:sync-replies')
     ->everyThreeMinutes()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 // Self-healing backstop for the photo/attachment mirror to PropertyWare: any
@@ -353,5 +353,5 @@ Schedule::command('import:all-vendors')
 // so a nightly run is one small request. Safe to re-run; --dry-run reports.
 Schedule::command('geocode:buildings')
     ->dailyAt('03:30')
-    ->withoutOverlapping()
+    ->withoutOverlapping(60)
     ->runInBackground();
