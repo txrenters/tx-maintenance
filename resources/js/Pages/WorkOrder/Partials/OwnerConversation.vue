@@ -106,13 +106,22 @@ watch(selectedOwner, (newOwner) => {
     }
 });
 
-// Preselect the first owner on the work order.
+// Preselect the first owner on the work order. An owner who is not on this
+// list belongs to another work order, so their number must not stay in the To
+// box: that sent a WO#44511 text to the owner of WO#44624 (2026-11-05).
 watch(
     () => props.workOrderOwners,
     (owners) => {
-        if (!selectedOwner.value && owners?.length) {
-            selectedOwner.value = String(owners[0].id);
+        const isListed = owners?.some(
+            (owner) => String(owner.id) === selectedOwner.value
+        );
+
+        if (isListed || (!selectedOwner.value && !owners?.length)) {
+            return;
         }
+
+        owner_phone_number.value = "";
+        selectedOwner.value = owners?.length ? String(owners[0].id) : "";
     },
     { immediate: true }
 );

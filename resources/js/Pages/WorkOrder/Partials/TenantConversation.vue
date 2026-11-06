@@ -154,13 +154,22 @@ const replyToBubble = ({ number }) => {
 };
 
 // Preselect the first tenant on the work order. Never the Requested By
-// contact's number: that is often the owner, staff or a technician.
+// contact's number: that is often the owner, staff or a technician. A tenant
+// who is not on this list belongs to another work order, so their number must
+// not stay in the To box.
 watch(
     () => props.workOrderTenants,
     (tenants) => {
-        if (!selectedTenant.value && tenants?.length) {
-            selectedTenant.value = String(tenants[0].id);
+        const isListed = tenants?.some(
+            (tenant) => String(tenant.id) === selectedTenant.value
+        );
+
+        if (isListed || (!selectedTenant.value && !tenants?.length)) {
+            return;
         }
+
+        tenant_phone_number.value = "";
+        selectedTenant.value = tenants?.length ? String(tenants[0].id) : "";
     },
     { immediate: true }
 );
