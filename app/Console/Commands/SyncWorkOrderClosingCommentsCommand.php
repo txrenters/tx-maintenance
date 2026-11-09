@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\WorkOrder;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -11,7 +12,7 @@ class SyncWorkOrderClosingCommentsCommand extends Command
 {
     protected $signature = 'sync:work-order-closing-comments {--overwrite : Replace existing non-empty local closing comments}';
 
-    protected $description = 'Sync closing comments from PropertyWare onto existing local work orders';
+    protected $description = 'Sync closing comments (and blank approval dates) from PropertyWare onto existing local work orders';
 
     public function handle(): int
     {
@@ -181,32 +182,53 @@ class SyncWorkOrderClosingCommentsCommand extends Command
 
             $matched++;
 
+            $changes = $this->approvedDateChange($workOrder, $data);
+
             $closingComment = $this->extractClosingComment($data['customFields'] ?? []);
 
             if ($closingComment === null || $closingComment === '') {
                 $missingClosingComment++;
+            } else {
+                $newValue = $overwrite
+                    ? $closingComment
+                    : (empty($workOrder->closing_comments) ? $closingComment : $workOrder->closing_comments);
 
-                continue;
+                if ($newValue !== $workOrder->closing_comments) {
+                    $changes['closing_comments'] = $newValue;
+                }
             }
 
-            $newValue = $overwrite
-                ? $closingComment
-                : (empty($workOrder->closing_comments) ? $closingComment : $workOrder->closing_comments);
-
-            if ($newValue === $workOrder->closing_comments) {
+            if ($changes === []) {
                 $unchanged++;
 
                 continue;
             }
 
-            $workOrder->update([
-                'closing_comments' => $newValue,
-            ]);
+            $workOrder->update($changes);
 
             $updated++;
         }
 
         return [$matched, $updated, $unchanged, $missingLocal, $missingClosingComment];
+    }
+
+    /**
+     * The approval date to fill in, as a change set. PropertyWare's REST
+     * listing carries only approved and approvedDate — no approval comment and
+     * no approver (checked live 2026-10-29) — so the comment still comes from
+     * the SOAP import alone. Fills a blank only: a local date is never
+     * replaced, and a blank from PropertyWare never clears one.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, string>
+     */
+    private function approvedDateChange(WorkOrder $workOrder, array $data): array
+    {
+        if (empty($data['approved']) || empty($data['approvedDate']) || filled($workOrder->approved_date)) {
+            return [];
+        }
+
+        return ['approved_date' => Carbon::parse($data['approvedDate'])->toDateString()];
     }
 
     /**

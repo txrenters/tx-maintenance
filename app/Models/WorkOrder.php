@@ -6,6 +6,7 @@ use App\Models\Scopes\WorkOrderScope;
 use App\Services\PhoneFormatter;
 use App\Services\PropertyWareService;
 use App\Services\TenantEasyFixService;
+use App\Services\WorkOrderApprovalHistory;
 use Carbon\Carbon;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -268,6 +269,12 @@ class WorkOrder extends Model
                 $workOrder->last_change_summary = $summary;
             }
         });
+
+        // Approval note, approver, date and flag: every change is kept in the
+        // activity log so a later sync that blanks or overwrites them can be
+        // undone by hand. See WorkOrderApprovalHistory.
+        static::created(fn (self $workOrder) => WorkOrderApprovalHistory::recordCreated($workOrder));
+        static::updated(fn (self $workOrder) => WorkOrderApprovalHistory::recordUpdated($workOrder));
     }
 
     /**
