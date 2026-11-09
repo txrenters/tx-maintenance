@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Skeleton } from "@/Components/ui/skeleton";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
+import DownloadConversationPdfButton from "@/Components/WorkOrder/DownloadConversationPdfButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
 import { buildParticipants, phoneKey } from "@/utils/conversation";
@@ -331,6 +332,13 @@ const notifyAssignment = async () => {
                                 : "Send assignment info"
                         }}
                     </Button>
+                    <DownloadConversationPdfButton
+                        :messages="displayedMessages"
+                        title="Vendor ↔ Coordinator"
+                        :work-order="workOrder"
+                        :our-number="woc_phone_number"
+                        :participants="participants"
+                    />
                     <AutomationToggle
                         v-if="workOrder?.id"
                         :work-order-id="workOrder.id"

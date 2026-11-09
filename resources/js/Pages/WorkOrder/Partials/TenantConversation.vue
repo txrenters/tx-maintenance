@@ -17,6 +17,7 @@ import {
 } from "@/Components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
+import DownloadConversationPdfButton from "@/Components/WorkOrder/DownloadConversationPdfButton.vue";
 import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
 import PortalLinkButton from "@/Components/WorkOrder/PortalLinkButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
@@ -274,6 +275,13 @@ watch(
                         v-if="workOrder?.id"
                         :work-order-id="workOrder.id"
                         audience="tenant"
+                    />
+                    <DownloadConversationPdfButton
+                        :messages="tenantConversation"
+                        title="Tenant ↔ Coordinator"
+                        :work-order="workOrder"
+                        :our-number="woc_phone_number"
+                        :participants="participants"
                     />
                     <AutomationToggle
                         v-if="workOrder?.id"
