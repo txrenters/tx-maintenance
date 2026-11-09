@@ -42,9 +42,15 @@ class ConversationPdf
         $messages = $this->messages($workOrder, $messageIds)
             ->map(fn (Conversation $message) => $this->present($message, $ourKey, $people));
 
+        $building = $workOrder->building;
+
         return Pdf::loadView('pdf.conversation', [
-            'workOrder' => $workOrder,
-            'title' => $title,
+            'heading' => $workOrder->work_order_no ? "WO#{$workOrder->work_order_no} — {$title}" : $title,
+            'address' => collect([
+                $building?->address,
+                $building?->city,
+                trim(($building?->state_region ?? '').' '.($building?->postal_code ?? '')),
+            ])->filter()->implode(', '),
             'participants' => $people->values(),
             'messages' => $messages,
             'printedAt' => now(self::TIMEZONE),

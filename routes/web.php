@@ -38,6 +38,7 @@ use App\Http\Controllers\JobberAutomationSettingsController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberJobNoteController;
+use App\Http\Controllers\JobberMessagesPdfController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
@@ -221,6 +222,7 @@ Route::middleware([
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
     Route::get('/inspections/text/messages', [InspectionController::class, 'messages'])->name('jobber.messages');
+    Route::post('/inspections/{job}/messages/pdf', JobberMessagesPdfController::class)->name('jobber.messages.pdf');
 
     // Vendor assignment and documentation on Jobber jobs (non-TexasRenters
     // client properties). These jobs never become work orders, so they need

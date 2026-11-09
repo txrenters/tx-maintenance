@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
 import Navigation from "./partials/Navigation.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import DownloadJobMessagesPdfButton from "@/Components/Jobber/DownloadJobMessagesPdfButton.vue";
 import TbpVisitNoticeDialog from "@/Components/TbpVisitNoticeDialog.vue";
 import { router, usePage, Head } from "@inertiajs/vue3";
 import debounce from "lodash.debounce";
@@ -1191,15 +1192,21 @@ onMounted(() => {
             >
                 <div class="flex items-center justify-between">
                     <p class="font-semibold uppercase text-xs">Job Messages</p>
-                    <Button
-                        v-if="isTbpVisit(selectedEvent)"
-                        variant="secondary"
-                        size="sm"
-                        title="Text the TBP visit notice for this date to the tenant"
-                        @click="openNoticeDialog"
-                    >
-                        <Send class="h-4 w-4" /> Send notification
-                    </Button>
+                    <div class="flex items-center gap-2">
+                        <DownloadJobMessagesPdfButton
+                            :job-id="selectedEvent.job?.id"
+                            :our-number="senderPhoneNumber || ''"
+                        />
+                        <Button
+                            v-if="isTbpVisit(selectedEvent)"
+                            variant="secondary"
+                            size="sm"
+                            title="Text the TBP visit notice for this date to the tenant"
+                            @click="openNoticeDialog"
+                        >
+                            <Send class="h-4 w-4" /> Send notification
+                        </Button>
+                    </div>
                 </div>
 
                 <!-- Contact Selection & Recipients - All Inline -->

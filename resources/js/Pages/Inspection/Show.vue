@@ -6,6 +6,7 @@ import axios from "axios";
 import debounce from "lodash.debounce";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import DownloadJobMessagesPdfButton from "@/Components/Jobber/DownloadJobMessagesPdfButton.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import JobPhotosTab from "./partials/JobPhotosTab.vue";
 import JobCloseAction from "./partials/JobCloseAction.vue";
@@ -560,6 +561,10 @@ onUnmounted(() => {
       </div>
 
       <div v-if="activeTab === 'messages' && job" class="space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="font-semibold uppercase text-xs">Job Messages</p>
+          <DownloadJobMessagesPdfButton :job-id="job.id" :our-number="senderPhoneNumber || ''" />
+        </div>
         <div class="flex flex-wrap gap-2 items-center bg-muted/20 rounded-lg p-2">
           <div class="flex flex-col">
             <Label class="text-sm">Add:</Label>

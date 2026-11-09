@@ -1,12 +1,5 @@
-@php
-    $building = $workOrder->building;
-    $address = collect([
-        $building?->address,
-        $building?->city,
-        trim(($building?->state_region ?? '').' '.($building?->postal_code ?? '')),
-    ])->filter()->implode(', ');
-    $heading = $workOrder->work_order_no ? "WO#{$workOrder->work_order_no} — {$title}" : $title;
-@endphp
+{{-- Shared by work order conversations and Jobber job messages: the caller
+     supplies the heading and address so this view stays model-agnostic. --}}
 <!DOCTYPE html>
 <html>
 <head>

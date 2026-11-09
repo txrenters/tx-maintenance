@@ -1,10 +1,10 @@
 <script setup>
 import { computed, ref } from "vue";
 import { usePage } from "@inertiajs/vue3";
-import axios from "axios";
 import { FileDown, Loader2 } from "lucide-vue-next";
 import { Button } from "@/Components/ui/button";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { downloadPdf } from "@/utils/downloadPdf";
 
 // Download the thread on screen as a PDF transcript. The tab decides which
 // messages are in it (the vendor tab filters by the vendor picked), so their
@@ -31,15 +31,12 @@ const isStaff = computed(() =>
     ),
 );
 
-const fileNameFrom = (disposition) =>
-    /filename="([^"]+)"/.exec(disposition ?? "")?.[1] ?? "Conversation.pdf";
-
 const download = async () => {
     if (downloading.value) return;
     downloading.value = true;
 
     try {
-        const response = await axios.post(
+        await downloadPdf(
             route("work_order.conversation.pdf", props.workOrder.id),
             {
                 title: props.title,
@@ -55,17 +52,7 @@ const download = async () => {
                     }),
                 ),
             },
-            { responseType: "blob" },
         );
-
-        const url = URL.createObjectURL(response.data);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileNameFrom(response.headers["content-disposition"]);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
         toast({
             variant: "destructive",
