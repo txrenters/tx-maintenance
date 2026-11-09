@@ -535,3 +535,6 @@ Route::fallback(function () {
         ->toResponse(request())
         ->setStatusCode(404);
 });
+
+// Staff sign-in through the TR Staff Portal (routes are off unless PORTAL_ENABLED; see config/portal.php).
+require __DIR__.'/portal.php';

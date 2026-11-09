@@ -33,6 +33,14 @@ const submit = () => {
             <CardDescription> Login with your email account </CardDescription>
         </CardHeader>
         <CardContent>
+            <div v-if="$page.props.portalEnabled" class="mb-6 grid gap-2">
+                <Button as="a" href="/auth/portal/redirect" class="w-full">
+                    Staff: sign in with TR Staff Portal
+                </Button>
+                <p class="text-center text-xs text-muted-foreground">
+                    Vendors, tenants and owners: use your email and password below.
+                </p>
+            </div>
             <form @submit.prevent="submit">
                 <div class="grid gap-6">
                     <div class="grid gap-2">

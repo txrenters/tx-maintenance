@@ -119,6 +119,8 @@ class HandleInertiaRequests extends Middleware
             'note_technicians' => fn () => WorkOrderNotes::asksTechnicianOf($request->user())
                 ? Technician::noteAuthorOptions()
                 : [],
+            // Shows "Staff: sign in with TR Staff Portal" on the login page.
+            'portalEnabled' => (bool) config('portal.enabled'),
         ]);
     }
 }
