@@ -226,7 +226,7 @@ export function useMessageAlerts(options = {}) {
                 tag: alert
                     ? `wo-${alert.work_order_id}-${alert.conversation_type}`
                     : "wo-messages",
-                icon: "/tx-portal-logo.png",
+                icon: "/maintenance-icon-192.png",
             });
 
             notification.onclick = () => {
