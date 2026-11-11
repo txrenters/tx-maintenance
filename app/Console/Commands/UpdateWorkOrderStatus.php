@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\DescriptionChangeAlertService;
+use App\Services\InspectionApp\HandoffService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\WorkOrderNoteSyncService;
@@ -212,6 +213,10 @@ class UpdateWorkOrderStatus extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // Newly assigned in PropertyWare: one of our own crews means the
+            // technicians' inspection app gets the work order now.
+            app(HandoffService::class)->consider($workOrderId, 'status_sync');
         }
     }
 

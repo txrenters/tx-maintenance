@@ -61,5 +61,10 @@
         <env name="VENDOR_AUTO_ASSIGN_ENABLED" value="false"/>
         <env name="JOBBER_VENDOR_NOTIFY_ENABLED" value="false"/>
         <env name="TASK_AUTO_COMPLETE_ENABLED" value="false"/>
+        <!-- The inspection app hand-off is exercised only by its own tests,
+             which set the URL, key and switch themselves. -->
+        <env name="INSPECTION_APP_HANDOFF_ENABLED" value="false"/>
+        <env name="INSPECTION_APP_URL" value=""/>
+        <env name="INSPECTION_APP_TOKEN" value=""/>
     </php>
 </phpunit>

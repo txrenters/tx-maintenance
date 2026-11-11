@@ -355,3 +355,12 @@ Schedule::command('geocode:buildings')
     ->dailyAt('03:30')
     ->withoutOverlapping(60)
     ->runInBackground();
+
+// Safety net for the inspection app hand-off. The real-time path is the
+// moment a vendor is assigned (HandoffService::consider); this only
+// re-queues anything that never got through and re-sends work orders that
+// changed since the app last saw them. Does nothing while the switch is off.
+Schedule::command('inspection-app:push-work-orders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground();

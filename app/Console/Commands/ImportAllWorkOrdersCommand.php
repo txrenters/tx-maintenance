@@ -6,6 +6,7 @@ use App\Models\Building;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\InspectionApp\HandoffService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -279,6 +280,10 @@ class ImportAllWorkOrdersCommand extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // Newly assigned in PropertyWare: one of our own crews means the
+            // technicians' inspection app gets the work order now.
+            app(HandoffService::class)->consider($workOrderId, 'import_all');
         }
     }
 

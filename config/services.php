@@ -8,6 +8,34 @@ return [
         'token' => env('PORTAL_API_TOKEN'),
     ],
 
+    // The technicians' inspection app (the other developer's; pages at
+    // inspection.texasrenters.com, the API at inspection-api.texasrenters.com).
+    // url = the API host, token = "<key id>.<secret>" from its API clients
+    // page, with request signing ON and a write scope for work orders.
+    // Blank URL or token = nothing is sent anywhere.
+    'inspection_app' => [
+        'url' => env('INSPECTION_APP_URL'),
+        'token' => env('INSPECTION_APP_TOKEN'),
+        // Hand every work order for our own crews to the app the moment one
+        // of those vendors lands on it (App\Services\InspectionApp). OFF by
+        // default: the receiving route on the app's gateway must exist first.
+        'handoff' => env('INSPECTION_APP_HANDOFF_ENABLED', false),
+        'handoff_path' => env('INSPECTION_APP_HANDOFF_PATH', '/api/v1/gateway/work-orders'),
+        // Our own crews, by PropertyWare vendor id (read off production
+        // 2026-11-12): Texas Home Maintenance Pros, Crystal Creek Air, LLC,
+        // Crystal Creek Pest Control LLC. Comma-separated.
+        'handoff_vendor_ids' => env('INSPECTION_APP_HANDOFF_VENDOR_IDS', '246120584,5466750978,4329930755'),
+        // ...and by exact name as a backup for a renamed or re-created row.
+        // Separated by "|" because a company name carries commas. Exact,
+        // trimmed, case-insensitive: never a prefix, so "Crystal Creek
+        // Construction" (1373863948, inactive) stays out.
+        'handoff_vendor_names' => env('INSPECTION_APP_HANDOFF_VENDOR_NAMES', 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC'),
+        // Outside companies staff tag THMP onto only so the Jobber job gets
+        // created (Jimmie Gendke SFA): their work orders never go across.
+        // PropertyWare vendor ids, comma-separated.
+        'handoff_skip_vendor_ids' => env('INSPECTION_APP_HANDOFF_SKIP_VENDOR_IDS', '4802084865'),
+    ],
+
     'chatbot' => [
         'enabled' => env('CHATBOT_HUB_ENABLED', false),
         'url' => env('CHATBOT_HUB_URL'),
