@@ -16,6 +16,7 @@ import ImageCropper from "./ImageCropper.vue";
 import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
 import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
+import { groupByTurnoverArea } from "@/utils/turnoverAreas";
 
 const { toast } = useToast();
 
@@ -56,6 +57,10 @@ const afterPics = computed(() => {
         (file) => file?.type === "after"
     );
 });
+
+// Turnover vendors file each after photo under a part of the home; when any
+// photo carries one, the section is shown room by room instead of as one list.
+const afterPicGroups = computed(() => groupByTurnoverArea(afterPics.value));
 
 // PropertyWare documents are streamed through our download route (images are
 // served inline), so the same URL works for both the thumbnail and the link.
@@ -559,7 +564,28 @@ function handleFiles(event) {
                 >
                     After Pictures
                 </p>
+                <template v-if="afterPicGroups">
+                    <div
+                        v-for="group in afterPicGroups"
+                        :key="group.label"
+                        class="mb-4"
+                    >
+                        <p class="text-sm font-semibold mb-2 pb-1 border-b">
+                            {{ group.label }}
+                            <span class="font-normal text-muted-foreground"
+                                >({{ group.files.length }})</span
+                            >
+                        </p>
+                        <Files
+                            :files="group.files"
+                            :loading="isLoading"
+                            @expandImage="handleExpandImage"
+                            @deleteImage="handleDeleteImage"
+                        />
+                    </div>
+                </template>
                 <Files
+                    v-else
                     :files="afterPics"
                     :loading="isLoading"
                     @expandImage="handleExpandImage"

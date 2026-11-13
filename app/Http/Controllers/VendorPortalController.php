@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class VendorPortalController extends Controller
 {
@@ -128,7 +129,7 @@ class VendorPortalController extends Controller
                     ->orWhere('user_id', $vendor->user_id);
             })
             ->latest()
-            ->get(['id', 'title', 'type', 'filename', 'filetype', 'created_at']);
+            ->get(['id', 'title', 'type', 'area', 'filename', 'filetype', 'created_at']);
 
         // This vendor's own invoices for this work order. withoutGlobalScopes()
         // drops NotArchivedScope too, so archived invoices are excluded here by
@@ -183,10 +184,14 @@ class VendorPortalController extends Controller
                 'time_estimate' => $assignment->time_estimate,
                 'scheduled_end_date' => $assignment->scheduled_end_date,
             ],
+            // Turnover jobs let the vendor file each "after" photo under the
+            // part of the home it shows; every other job gets no picker.
+            'turnoverAreas' => $workOrder->isTurnover() ? Attachments::TURNOVER_AREAS : [],
             'attachments' => $attachments->map(fn ($a) => [
                 'id' => $a->id,
                 'title' => $a->title,
                 'type' => $a->type,
+                'area' => $a->area,
                 'url' => asset('storage/'.$a->filename),
                 'is_image' => str_starts_with((string) $a->filetype, 'image/')
                     || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', (string) $a->filename),
@@ -367,6 +372,7 @@ class VendorPortalController extends Controller
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
             'type' => 'nullable|in:before,after,attachment',
+            'area' => ['nullable', 'string', Rule::in(Attachments::TURNOVER_AREAS)],
             'files' => 'required|array|min:1',
             'files.*' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt|max:51200',
         ]);
@@ -380,12 +386,23 @@ class VendorPortalController extends Controller
                     : 'Vendor photo ('.$type.') - WO#'.$workOrder->work_order_no;
             }
 
+            // Only a turnover "after" photo is filed under a part of the home.
+            // The area leads the title so PropertyWare and the owner and
+            // tenant portals, which only ever see the title, sort by it too.
+            $area = $workOrder->isTurnover() && $type === 'after'
+                ? ($validated['area'] ?? null) ?: null
+                : null;
+            if ($area !== null) {
+                $title = $area.' - '.$title;
+            }
+
             foreach ($request->file('files') as $file) {
                 $attachment = Attachments::create([
                     'title' => $title,
                     'filename' => $file->store('attachments', 'public'),
                     'filetype' => $file->getMimeType(),
                     'type' => $type,
+                    'area' => $area,
                     'work_order_id' => $workOrder->id,
                     'user_id' => $vendor->user_id,
                     'is_publish_to_owner_portal' => true,

@@ -34,6 +34,9 @@ const props = defineProps({
     tasks: { type: Array, default: () => [] },
     estimate: { type: Object, default: () => ({}) },
     attachments: { type: Array, default: () => [] },
+    // Parts of the home an "after" photo can be filed under. Only a turnover
+    // job sends any; every other job leaves it empty and shows no picker.
+    turnoverAreas: { type: Array, default: () => [] },
     invoices: { type: Array, default: () => [] },
     // False until this vendor has uploaded a photo of their own to this work
     // order. The server refuses the invoice either way; this only keeps the
@@ -212,6 +215,10 @@ const photoTypes = [
     { value: "attachment", label: "Other" },
 ];
 const photoTitle = ref("");
+const photoArea = ref("");
+const showAreaPicker = computed(
+    () => props.turnoverAreas.length > 0 && photoType.value === "after",
+);
 const selectedFiles = ref([]);
 const selectedPreviews = ref([]);
 const photoInput = ref(null);
@@ -255,6 +262,9 @@ const uploadPhotos = () => {
     const data = new FormData();
     data.append("title", photoTitle.value.trim());
     data.append("type", photoType.value);
+    if (showAreaPicker.value && photoArea.value) {
+        data.append("area", photoArea.value);
+    }
     selectedFiles.value.forEach((file) => data.append("files[]", file));
 
     router.post(route("vendor.portal.attachments", props.token), data, {
@@ -264,6 +274,7 @@ const uploadPhotos = () => {
             selectedFiles.value = [];
             selectedPreviews.value = [];
             photoTitle.value = "";
+            photoArea.value = "";
             if (photoInput.value) photoInput.value.value = "";
         },
         onFinish: () => (uploading.value = false),
@@ -1019,6 +1030,34 @@ const confirmCompleteTask = () => {
                                 >
                                     {{ opt.label }}
                                 </button>
+                            </div>
+
+                            <!-- Turnover jobs: file the after photos by part of the home -->
+                            <div v-if="showAreaPicker">
+                                <label
+                                    for="photo-area"
+                                    class="text-xs font-medium text-muted-foreground"
+                                    >Area of the home</label
+                                >
+                                <select
+                                    id="photo-area"
+                                    v-model="photoArea"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                >
+                                    <option value="">Choose an area…</option>
+                                    <option
+                                        v-for="area in turnoverAreas"
+                                        :key="area"
+                                        :value="area"
+                                    >
+                                        {{ area }}
+                                    </option>
+                                </select>
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Pick the room, add its photos, then upload.
+                                    Repeat for the next room so the office can
+                                    review the job area by area.
+                                </p>
                             </div>
 
                             <label
