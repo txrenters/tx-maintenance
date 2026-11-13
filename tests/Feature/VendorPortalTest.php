@@ -434,6 +434,79 @@ class VendorPortalTest extends TestCase
         $this->assertSame(2, Attachments::query()->where('area', 'Kitchen')->count());
     }
 
+    public function test_each_photo_in_a_batch_keeps_its_own_area(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'files' => [
+                UploadedFile::fake()->image('kitchen.jpg'),
+                UploadedFile::fake()->image('game.jpg'),
+                UploadedFile::fake()->image('bed.jpg'),
+                UploadedFile::fake()->image('wide.jpg'),
+            ],
+            'areas' => ['Kitchen', 'Game Room', 'Bedroom 1', ''],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('attachments', 4);
+        foreach (['Kitchen', 'Game Room', 'Bedroom 1'] as $area) {
+            $this->assertDatabaseHas('attachments', [
+                'work_order_id' => $workOrder->id,
+                'area' => $area,
+                'title' => $area.' - Vendor photo (after) - WO#4567',
+            ]);
+        }
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'area' => null,
+            'title' => 'Vendor photo (after) - WO#4567',
+        ]);
+    }
+
+    public function test_a_photo_without_its_own_area_falls_back_to_the_batch_area(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => 'Garage',
+            'files' => [UploadedFile::fake()->image('a.jpg'), UploadedFile::fake()->image('b.jpg')],
+            'areas' => ['Lawn', ''],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', ['area' => 'Lawn', 'title' => 'Lawn - Vendor photo (after) - WO#4567']);
+        $this->assertDatabaseHas('attachments', ['area' => 'Garage', 'title' => 'Garage - Vendor photo (after) - WO#4567']);
+    }
+
+    public function test_a_per_photo_area_outside_the_list_is_refused(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'files' => [UploadedFile::fake()->image('a.jpg')],
+            'areas' => ['Attic'],
+        ])->assertRedirect()->assertSessionHasErrors('areas.0');
+
+        $this->assertDatabaseCount('attachments', 0);
+    }
+
     public function test_a_typed_description_keeps_the_area_in_front(): void
     {
         Storage::fake('public');

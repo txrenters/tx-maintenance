@@ -373,30 +373,36 @@ class VendorPortalController extends Controller
             'title' => 'nullable|string|max:255',
             'type' => 'nullable|in:before,after,attachment',
             'area' => ['nullable', 'string', Rule::in(Attachments::TURNOVER_AREAS)],
+            'areas' => 'nullable|array',
+            'areas.*' => ['nullable', 'string', Rule::in(Attachments::TURNOVER_AREAS)],
             'files' => 'required|array|min:1',
             'files.*' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt|max:51200',
         ]);
 
         try {
             $type = $validated['type'] ?? 'after';
-            $title = trim($validated['title'] ?? '');
-            if ($title === '') {
-                $title = $type === 'attachment'
+            $baseTitle = trim($validated['title'] ?? '');
+            if ($baseTitle === '') {
+                $baseTitle = $type === 'attachment'
                     ? 'Vendor attachment - WO#'.$workOrder->work_order_no
                     : 'Vendor photo ('.$type.') - WO#'.$workOrder->work_order_no;
             }
 
             // Only a turnover "after" photo is filed under a part of the home.
-            // The area leads the title so PropertyWare and the owner and
-            // tenant portals, which only ever see the title, sort by it too.
-            $area = $workOrder->isTurnover() && $type === 'after'
-                ? ($validated['area'] ?? null) ?: null
-                : null;
-            if ($area !== null) {
-                $title = $area.' - '.$title;
-            }
+            // areas[] pairs with files[] by position (the portal sends one per
+            // photo); a lone "area" applies to the whole batch. The area leads
+            // the title so PropertyWare and the owner and tenant portals, which
+            // only ever see the title, sort by it too.
+            $filesTakeAreas = $workOrder->isTurnover() && $type === 'after';
+            $perFileAreas = array_values($validated['areas'] ?? []);
+            $batchArea = ($validated['area'] ?? null) ?: null;
 
-            foreach ($request->file('files') as $file) {
+            foreach (array_values($request->file('files')) as $index => $file) {
+                $area = $filesTakeAreas
+                    ? (($perFileAreas[$index] ?? null) ?: $batchArea)
+                    : null;
+                $title = $area !== null ? $area.' - '.$baseTitle : $baseTitle;
+
                 $attachment = Attachments::create([
                     'title' => $title,
                     'filename' => $file->store('attachments', 'public'),

@@ -242,6 +242,10 @@ const onPickFiles = (e) => {
             name: file.name,
             isImage: image,
             url: image ? URL.createObjectURL(file) : null,
+            // Each photo keeps the area that was selected when it was added,
+            // so a vendor can pick Kitchen, add a photo, pick Game Room, add
+            // another, and upload once. Editable per tile below.
+            area: showAreaPicker.value ? photoArea.value : "",
         });
     });
     // Reset so re-picking the same file still fires @change.
@@ -262,10 +266,12 @@ const uploadPhotos = () => {
     const data = new FormData();
     data.append("title", photoTitle.value.trim());
     data.append("type", photoType.value);
-    if (showAreaPicker.value && photoArea.value) {
-        data.append("area", photoArea.value);
-    }
-    selectedFiles.value.forEach((file) => data.append("files[]", file));
+    selectedFiles.value.forEach((file, i) => {
+        data.append("files[]", file);
+        if (showAreaPicker.value) {
+            data.append("areas[]", selectedPreviews.value[i]?.area || "");
+        }
+    });
 
     router.post(route("vendor.portal.attachments", props.token), data, {
         preserveScroll: true,
@@ -1054,9 +1060,9 @@ const confirmCompleteTask = () => {
                                     </option>
                                 </select>
                                 <p class="mt-1 text-xs text-muted-foreground">
-                                    Pick the room, add its photos, then upload.
-                                    Repeat for the next room so the office can
-                                    review the job area by area.
+                                    Pick the room, then add its photos. Each
+                                    photo keeps the room it was added under;
+                                    change it on the photo if needed.
                                 </p>
                             </div>
 
@@ -1092,30 +1098,50 @@ const confirmCompleteTask = () => {
                                 <div
                                     v-for="(p, i) in selectedPreviews"
                                     :key="i"
-                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                    class="flex flex-col gap-1"
                                 >
-                                    <img
-                                        v-if="p.isImage"
-                                        :src="p.url"
-                                        class="w-full h-full object-cover"
-                                    />
                                     <div
-                                        v-else
-                                        class="flex flex-col items-center justify-center gap-1 w-full px-1"
+                                        class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
                                     >
-                                        <FileText class="w-6 h-6 text-muted-foreground" />
-                                        <span
-                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
-                                            >{{ p.name }}</span
+                                        <img
+                                            v-if="p.isImage"
+                                            :src="p.url"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <div
+                                            v-else
+                                            class="flex flex-col items-center justify-center gap-1 w-full px-1"
                                         >
+                                            <FileText class="w-6 h-6 text-muted-foreground" />
+                                            <span
+                                                class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
+                                                >{{ p.name }}</span
+                                            >
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                            @click="removeSelectedFile(i)"
+                                        >
+                                            <X class="w-3 h-3" />
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
-                                        @click="removeSelectedFile(i)"
+                                    <select
+                                        v-if="showAreaPicker"
+                                        v-model="p.area"
+                                        :aria-label="`Area for ${p.name}`"
+                                        class="w-full rounded-md border border-input bg-background text-foreground px-1 py-1 text-xs focus:border-ring focus:ring-0"
+                                        :class="{ 'border-amber-500': !p.area }"
                                     >
-                                        <X class="w-3 h-3" />
-                                    </button>
+                                        <option value="">No area</option>
+                                        <option
+                                            v-for="area in turnoverAreas"
+                                            :key="area"
+                                            :value="area"
+                                        >
+                                            {{ area }}
+                                        </option>
+                                    </select>
                                 </div>
                             </div>
 
