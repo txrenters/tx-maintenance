@@ -12,6 +12,7 @@ use App\Services\VendorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class VendorController extends Controller
 {
@@ -34,6 +35,7 @@ class VendorController extends Controller
                     'id' => $vendor->id,
                     'name' => $vendor->name,
                     'email' => $vendor->user->email,
+                    'cc_emails' => $vendor->cc_emails ?? [],
                     'phone' => $vendor->user->phone,
                     'vendor_type' => $vendor->vendor_type,
                     'name_on_check' => $vendor->name_on_check,
@@ -110,6 +112,7 @@ class VendorController extends Controller
                 'id' => $vendor->id,
                 'name' => $vendor->name,
                 'email' => $vendor->email,
+                'cc_emails' => $vendor->cc_emails ?? [],
                 'phone' => $vendor->user?->phone,
                 'company' => $vendor->user?->company,
                 'address' => $vendor->user?->address,
@@ -152,6 +155,7 @@ class VendorController extends Controller
                 'name' => $user->name,
                 'contact_name' => $request->contact_name,
                 'email' => $user->email,
+                'cc_emails' => $this->ccEmailsFrom($request),
                 'twilio_number' => $request->twilio_number,
                 'user_id' => $user->id,
                 'is_active' => true,
@@ -163,6 +167,33 @@ class VendorController extends Controller
 
         return redirect()->route('vendors.index');
 
+    }
+
+    /**
+     * "Also email": free text in the dialog, stored as a clean list. Every
+     * address is checked so a typo never silently drops the office copy.
+     *
+     * @return list<string>|null
+     *
+     * @throws ValidationException
+     */
+    private function ccEmailsFrom(Request $request): ?array
+    {
+        $list = Vendor::parseCcEmails($request->input('cc_emails'));
+
+        $bad = array_values(array_filter($list ?? [], fn ($address) => filter_var($address, FILTER_VALIDATE_EMAIL) === false));
+        if ($bad !== []) {
+            throw ValidationException::withMessages([
+                'cc_emails' => 'Not a valid email address: '.implode(', ', $bad),
+            ]);
+        }
+        if (count($list ?? []) > 10) {
+            throw ValidationException::withMessages([
+                'cc_emails' => 'Up to 10 extra addresses.',
+            ]);
+        }
+
+        return $list;
     }
 
     /**
@@ -183,6 +214,8 @@ class VendorController extends Controller
         ]);
 
         $vendorData['zones'] = empty($vendorData['zones'] ?? null) ? null : array_values(array_unique($vendorData['zones']));
+
+        $vendorData['cc_emails'] = $this->ccEmailsFrom($request);
 
         $userData = $request->validate([
             'name' => 'required',

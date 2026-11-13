@@ -38,6 +38,15 @@ class WorkOrderEmailSender
     ): EmailMessage {
         $recipient = $to ?? $vendor->email;
         $senderMailbox = $mailbox ?? (string) config('services.microsoft.mailbox');
+
+        // The vendor's own extra addresses (an office inbox they can read)
+        // ride along on every email we send them, after the office copies.
+        $cc = collect($cc)
+            ->merge($vendor->ccEmailList())
+            ->filter(fn ($address) => strcasecmp((string) $address, (string) $recipient) !== 0)
+            ->unique(fn ($address) => strtolower((string) $address))
+            ->values()
+            ->all();
         $tag = $workOrder
             ? 'TX-'.$workOrder->work_order_no.'-'.$vendor->id
             : 'TX-GEN-'.$vendor->id;
