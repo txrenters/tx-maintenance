@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
 use App\Models\WorkOrderRecommendation;
+use App\Services\InspectionApp\HandoffStatus;
 use App\Services\TenantEasyFixReplyJudge;
 use App\Services\WorkOrderRecommendationService;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,7 @@ class WorkOrderRecommendationController extends Controller
     public function __construct(
         private readonly WorkOrderRecommendationService $recommendationService,
         private readonly TenantEasyFixReplyJudge $easyFixReplyJudge,
+        private readonly HandoffStatus $handoffStatus,
     ) {}
 
     public function show(WorkOrder $workOrder): JsonResponse
@@ -59,6 +61,9 @@ class WorkOrderRecommendationController extends Controller
         return $recommendation->toArray() + [
             'property_history' => $this->recommendationService->propertyHistory($workOrder),
             'easy_fix_reply' => $this->easyFixReplyJudge->latestFor($workOrder),
+            // Where the hand-off to the inspection app stands: held and why,
+            // or sent under which rule (the 2026-11-19 approval filter).
+            'inspection_app_handoff' => $this->handoffStatus->for($workOrder),
         ];
     }
 }

@@ -200,6 +200,27 @@ const hasEasyFixAssessment = computed(
         Boolean(intakeEasyFixKey.value) ||
         Boolean(easyFixReply.value),
 );
+// Where the hand-off to the technicians' inspection app stands: held and
+// why, or sent under which rule. Null when the work order is not ours.
+const inspectionHandoff = computed(
+    () => props.recommendation?.inspection_app_handoff ?? null,
+);
+const inspectionHandoffLine = computed(() => {
+    const handoff = inspectionHandoff.value;
+    if (!handoff) return null;
+    const rules = {
+        emergency: "sent as an emergency",
+        under_threshold: "sent: under the approval threshold",
+        owner_approved_recorded: "sent: owner approval on record",
+        owner_approved_in_messages: "sent: owner approval read from messages by AI",
+        manual: "sent by hand from the console",
+    };
+    if (handoff.status === "held") return `Inspection app, waiting: ${handoff.held_reason}`;
+    if (handoff.status === "sent") return `Inspection app: ${rules[handoff.rule] ?? "sent"}`;
+    if (handoff.status === "pending") return `Inspection app: queued (${rules[handoff.rule] ?? "pending"})`;
+    if (handoff.status === "failed") return "Inspection app refused it; see the outbox";
+    return null;
+});
 const humanizeKey = (key) => (key ? String(key).replace(/_/g, " ") : "");
 const intakeEasyFixLabel = computed(() => {
     const key = intakeEasyFixKey.value;
@@ -411,6 +432,17 @@ const formatDate = (date) => {
                             <template v-if="easyFixReply.ready">
                                 Nothing closes on its own: close it out when you agree.
                             </template>
+                        </p>
+
+                        <p
+                            v-if="inspectionHandoffLine"
+                            class="text-sm leading-6 text-muted-foreground"
+                            data-inspection-handoff
+                        >
+                            {{ inspectionHandoffLine }}
+                            <span v-if="inspectionHandoff?.reading?.summary">
+                                AI reading ({{ inspectionHandoff.reading.confidence }}%): {{ inspectionHandoff.reading.summary }}
+                            </span>
                         </p>
 
                         <p
