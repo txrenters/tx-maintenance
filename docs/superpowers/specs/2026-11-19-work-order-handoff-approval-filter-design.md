@@ -84,10 +84,10 @@ a vendor's "ok" is not the owner's.
 {
   "problems": [
     { "item": "hallway light fixture", "decision": "approved",
-      "evidence": "Go ahead with the light. — owner, 2026-11-10 14:02 (SMS)" },
+      "evidence": "Go ahead with the light.", "source": "owner, 2026-11-10 14:02 (SMS)" },
     { "item": "front door", "decision": "declined",
-      "evidence": "Hold off on the door for now. — owner, 2026-11-10 14:02 (SMS)" },
-    { "item": "lawn", "decision": "not_mentioned", "evidence": null }
+      "evidence": "Hold off on the door for now.", "source": "owner, 2026-11-10 14:02 (SMS)" },
+    { "item": "lawn", "decision": "not_mentioned", "evidence": null, "source": null }
   ],
   "approved": true,
   "confidence": 92,
@@ -96,8 +96,13 @@ a vendor's "ok" is not the owner's.
 ```
 
 `approved` is true when at least one problem is approved. Every `approved`
-or `declined` decision must carry a verbatim quote; a decision without one is
-rejected and the reading is stored as failed, never as an approval.
+or `declined` decision must carry a verbatim quote in `evidence`, with who
+wrote it, when and where in `source`; a decision without one is rejected and
+the reading is stored as failed, never as an approval. An `approved` quote is
+also checked against the thread (case, spacing and quote marks collapsed): it
+must appear in a message the owner wrote, not in the office's, a note or the
+approval comment, or the reading is invalid. The model is not trusted to have
+copied the right person.
 
 **What counts as approved.** Only a clear go-ahead from the owner, in the
 owner's own words: "go ahead", "approved", "yes, fix the light", "do it".
