@@ -34,6 +34,27 @@ return [
         // created (Jimmie Gendke SFA): their work orders never go across.
         // PropertyWare vendor ids, comma-separated.
         'handoff_skip_vendor_ids' => env('INSPECTION_APP_HANDOFF_SKIP_VENDOR_IDS', '4802084865'),
+        // Go-live without a backfill (the office, 2026-11-19): a work order
+        // created before this date is never handed off for the first time.
+        // ISO date, e.g. 2026-12-01. Unset = every open work order qualifies.
+        'handoff_since' => env('INSPECTION_APP_HANDOFF_SINCE'),
+        // Only work orders a crew may start are sent (docs/superpowers/specs/
+        // 2026-11-19-work-order-handoff-approval-filter-design.md). Under this
+        // estimate the office does not ask the owner; at or over it, the owner
+        // must have approved -- on record, or in messages as the AI reads them.
+        'handoff_approval_threshold' => (float) env('INSPECTION_APP_HANDOFF_APPROVAL_THRESHOLD', 300),
+        // The AI reads notes and owner threads for a work order held over the
+        // threshold. Off = such work orders wait for the approval fields.
+        'handoff_ai_reader' => env('INSPECTION_APP_HANDOFF_AI_READER_ENABLED', true),
+        // A reading at or above this confidence sends the work order on its
+        // own. The office chose no coordinator step (2026-11-19).
+        'handoff_ai_confidence' => (int) env('INSPECTION_APP_HANDOFF_AI_MIN_CONFIDENCE', 80),
+        // True holds an AI-read approval instead of sending it, with the reading
+        // shown on the work order; the office enters the approval in
+        // PropertyWare to send. Off because the office asked for automatic.
+        'handoff_ai_requires_confirmation' => env('INSPECTION_APP_HANDOFF_AI_REQUIRES_CONFIRMATION', false),
+        // Readings per five-minute sweep, so a backlog cannot run up a bill.
+        'handoff_ai_reads_per_sweep' => (int) env('INSPECTION_APP_HANDOFF_AI_READS_PER_SWEEP', 20),
     ],
 
     'chatbot' => [
