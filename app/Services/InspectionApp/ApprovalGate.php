@@ -6,6 +6,7 @@ use App\Models\AiInsight;
 use App\Models\InspectionAppHandoff;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use Illuminate\Support\Str;
 
 /**
  * May a crew start this work order? The office's rule, applied to every
@@ -27,6 +28,8 @@ class ApprovalGate
 {
     /** What PropertyWare syncs into approved_by when nobody has. */
     private const NOT_AN_APPROVER = ['', 'n/a', 'na', 'none', 'null', '-'];
+
+    public function __construct(private OwnerApprovalReader $reader) {}
 
     public function threshold(): float
     {
@@ -77,7 +80,37 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
         }
 
-        return ApprovalDecision::hold($this->heldReason($estimate, $threshold), $estimate, $threshold, true);
+        $reading ??= $this->reader->latestFor($workOrder);
+
+        if ($reading !== null && $this->reader->approves($reading)) {
+            if ((bool) config('services.inspection_app.handoff_ai_requires_confirmation', false)) {
+                return ApprovalDecision::hold(
+                    sprintf('Owner approved in messages (%d%%): %s — enter the approval in PropertyWare to send', (int) $reading->confidence, Str::limit((string) data_get($reading->data, 'summary'), 90)),
+                    $estimate,
+                    $threshold,
+                    false,
+                );
+            }
+
+            return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_IN_MESSAGES, $estimate, $threshold);
+        }
+
+        $reason = $this->heldReason($estimate, $threshold);
+
+        if ($reading !== null) {
+            $count = (int) data_get($reading->data, 'messages_read', 0);
+            $reason .= sprintf(
+                ' · AI read %d owner message%s and found %s (%d%%)',
+                $count,
+                $count === 1 ? '' : 's',
+                data_get($reading->data, 'valid') ? 'no approval' : 'nothing it could use',
+                (int) $reading->confidence,
+            );
+        }
+
+        $needsReading = $this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading));
+
+        return ApprovalDecision::hold(Str::limit($reason, 200, ''), $estimate, $threshold, $needsReading);
     }
 
     private function heldReason(?float $estimate, float $threshold): string

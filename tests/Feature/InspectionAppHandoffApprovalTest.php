@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\OwnerApprovalReaderAgent;
 use App\Jobs\PushWorkOrderToInspectionApp;
+use App\Jobs\ReadOwnerApprovalForHandoff;
 use App\Models\AiInsight;
+use App\Models\Conversation;
 use App\Models\InspectionAppHandoff;
 use App\Models\ServiceStatus;
 use App\Models\User;
@@ -38,6 +41,9 @@ class InspectionAppHandoffApprovalTest extends TestCase
             'services.inspection_app.handoff_vendor_ids' => '246120584,5466750978,4329930755',
             'services.inspection_app.handoff_vendor_names' => 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC',
             'services.inspection_app.handoff_skip_vendor_ids' => '4802084865',
+            'services.inspection_app.handoff_ai_reader' => true,
+            'ai.default' => 'openai',
+            'ai.providers.openai.key' => 'test-key',
         ]);
 
         ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
@@ -322,5 +328,172 @@ class InspectionAppHandoffApprovalTest extends TestCase
 
         $this->assertSame('sent', $row->status);
         $this->assertSame('manual', $row->rule);
+    }
+
+    // ---- Rule 3a: the reading releases the row -----------------------------
+
+    private function approvedReading(int $confidence = 92): void
+    {
+        OwnerApprovalReaderAgent::fake([[
+            'problems' => [['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light. — owner, 2026-11-10 14:02 (SMS)']],
+            'approved' => true,
+            'confidence' => $confidence,
+            'summary' => 'Owner approved the hallway light by text on 2026-11-10.',
+        ]]);
+    }
+
+    private function noApprovalReading(): void
+    {
+        OwnerApprovalReaderAgent::fake([[
+            'problems' => [['item' => 'hallway light', 'decision' => 'not_mentioned', 'evidence' => null]],
+            'approved' => false,
+            'confidence' => 90,
+            'summary' => 'The owner has not answered.',
+        ]]);
+    }
+
+    private function ownerSaid(WorkOrder $workOrder, string $message): void
+    {
+        Conversation::query()->create([
+            'message' => $message,
+            'sender_number' => '+15125550100',
+            'receiver_number' => '+12813787957',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'is_read' => false,
+        ]);
+    }
+
+    public function test_consider_queues_a_reading_for_a_held_work_order_and_the_reading_sends_it(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        Queue::assertPushed(ReadOwnerApprovalForHandoff::class, fn (ReadOwnerApprovalForHandoff $job) => $job->handoffId === $row->id);
+
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+
+        $row->refresh();
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('owner_approved_in_messages', $row->rule);
+        $this->assertNotNull($row->ai_insight_id);
+        $this->assertNull($row->held_reason);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_a_reading_that_finds_no_approval_keeps_the_row_held_and_says_what_it_read(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'How much is the door by itself?');
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->noApprovalReading();
+        $this->service()->readAndRelease($row->id);
+
+        $row->refresh();
+        $this->assertSame('held', $row->status);
+        $this->assertStringContainsString('no owner approval is recorded', $row->held_reason);
+        $this->assertStringContainsString('AI read 1 owner message and found no approval (90%)', $row->held_reason);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+    }
+
+    public function test_a_reading_under_the_confidence_bar_does_not_send(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->approvedReading(70);
+        $this->service()->readAndRelease($row->id);
+
+        $this->assertSame('held', $row->fresh()->status);
+    }
+
+    public function test_the_confirmation_switch_holds_a_confident_reading_with_the_reading_in_the_reason(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_ai_requires_confirmation' => true]);
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+
+        $row->refresh();
+        $this->assertSame('held', $row->status);
+        $this->assertStringContainsString('Owner approved in messages (92%)', $row->held_reason);
+        $this->assertStringContainsString('enter the approval in PropertyWare to send', $row->held_reason);
+        $this->assertNotNull($row->ai_insight_id);
+    }
+
+    public function test_the_sweep_reads_held_rows_up_to_the_cap_and_never_the_same_text_twice(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_ai_reads_per_sweep' => 2]);
+        foreach ([1, 2, 3] as $n) {
+            $workOrder = $this->workOrder(['cost_estimate' => 450, 'description' => "Problem {$n}"]);
+            $this->thmpOn($workOrder);
+            $this->service()->consider($workOrder->id, 'vendor_assigned');
+        }
+        $asked = 0;
+        OwnerApprovalReaderAgent::fake(function () use (&$asked) {
+            $asked++;
+
+            return ['problems' => [['item' => 'x', 'decision' => 'not_mentioned', 'evidence' => null]], 'approved' => false, 'confidence' => 90, 'summary' => 'Nothing.'];
+        });
+
+        $first = $this->service()->sweep();
+        $this->assertSame(2, $first['read']);
+        $this->assertSame(2, $asked);
+
+        $second = $this->service()->sweep();
+        $this->assertSame(1, $second['read']);
+        $this->assertSame(3, $asked);
+
+        $third = $this->service()->sweep();
+        $this->assertSame(0, $third['read']);
+        $this->assertSame(3, $asked);
+    }
+
+    public function test_the_sweep_reads_again_only_when_the_owner_writes_again(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $this->noApprovalReading();
+        $this->service()->readAndRelease($row->id);
+
+        $this->assertSame(0, $this->service()->sweep()['read']);
+
+        $this->ownerSaid($workOrder, 'Yes, go ahead with the light.');
+        $this->approvedReading();
+        $result = $this->service()->sweep();
+
+        $this->assertSame(1, $result['read']);
+        $this->assertSame(1, $result['released']);
+        $this->assertSame('pending', $row->fresh()->status);
+    }
+
+    public function test_the_reader_switched_off_leaves_held_rows_waiting_for_the_fields(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_ai_reader' => false]);
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        Queue::assertNotPushed(ReadOwnerApprovalForHandoff::class);
+        $this->assertSame(0, $this->service()->sweep()['read']);
+        $this->assertSame('held', $row->fresh()->status);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\InspectionApp;
 
 use App\Jobs\PushWorkOrderToInspectionApp;
+use App\Jobs\ReadOwnerApprovalForHandoff;
 use App\Models\InspectionAppHandoff;
 use App\Models\WorkOrder;
 use Illuminate\Http\Client\ConnectionException;
@@ -36,6 +37,7 @@ class HandoffService
     public function __construct(
         private HandoffRule $rule,
         private ApprovalGate $gate,
+        private OwnerApprovalReader $reader,
         private HandoffPayload $payload,
         private InspectionAppClient $client,
     ) {}
@@ -95,9 +97,53 @@ class HandoffService
 
     /**
      * Apply a decision to a row: queue it under its rule, or hold it with
-     * the reason. The one place a row moves from held to pending.
+     * the reason and, when the owner's messages could still let it go, ask
+     * the AI to read them now. The one place a row moves from held to pending.
      */
     public function release(InspectionAppHandoff $row, ApprovalDecision $decision): void
+    {
+        $this->releaseWithoutReading($row, $decision);
+
+        if (! $decision->send && $decision->needsReading) {
+            ReadOwnerApprovalForHandoff::dispatch($row->id)->afterCommit();
+        }
+    }
+
+    /**
+     * Read one held row's owner messages and let it go if the reading is a
+     * confident approval. Runs from the queued job and from the sweep.
+     * Returns whether the AI was actually asked.
+     */
+    public function readAndRelease(int $handoffId): bool
+    {
+        $row = InspectionAppHandoff::query()->find($handoffId);
+
+        if (! $row || $row->status !== InspectionAppHandoff::STATUS_HELD || ! $this->enabled()) {
+            return false;
+        }
+
+        $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
+
+        if (! $workOrder || ! $this->rule->qualifies($workOrder)) {
+            return false;
+        }
+
+        $reading = $this->reader->latestFor($workOrder);
+        $asked = false;
+
+        if ($this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading))) {
+            $reading = $this->reader->read($workOrder) ?? $reading;
+            $asked = true;
+        }
+
+        $decision = $this->gate->decide($workOrder, $reading);
+        $row->forceFill(['ai_insight_id' => $reading?->id])->save();
+        $this->releaseWithoutReading($row, $decision);
+
+        return $asked;
+    }
+
+    private function releaseWithoutReading(InspectionAppHandoff $row, ApprovalDecision $decision): void
     {
         if ($decision->send) {
             $row->forceFill([
@@ -295,7 +341,9 @@ class HandoffService
             ->orderBy('id')
             ->get();
 
+        $cap = max(0, (int) config('services.inspection_app.handoff_ai_reads_per_sweep', 20));
         $released = 0;
+        $read = 0;
 
         foreach ($rows as $row) {
             $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
@@ -308,13 +356,28 @@ class HandoffService
                 continue;
             }
 
-            $decision = $this->gate->decide($workOrder);
+            $reading = $this->reader->latestFor($workOrder);
+            $stale = $this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading));
+
+            if ($stale && $read < $cap) {
+                $read++;
+
+                if (! $dryRun) {
+                    $reading = $this->reader->read($workOrder) ?? $reading;
+                }
+            }
+
+            $decision = $this->gate->decide($workOrder, $reading);
+
+            if (! $dryRun) {
+                $row->forceFill(['ai_insight_id' => $reading?->id])->save();
+            }
 
             if ($decision->send) {
                 $released++;
 
                 if (! $dryRun) {
-                    $this->release($row, $decision);
+                    $this->releaseWithoutReading($row, $decision);
                 }
 
                 continue;
@@ -325,7 +388,7 @@ class HandoffService
             }
         }
 
-        return ['held' => $rows->count(), 'released' => $released, 'read' => 0];
+        return ['held' => $rows->count(), 'released' => $released, 'read' => $read];
     }
 
     /**
