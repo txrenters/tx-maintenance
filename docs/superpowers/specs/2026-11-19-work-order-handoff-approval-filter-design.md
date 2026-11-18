@@ -19,9 +19,12 @@ The office's rule, as it does it by hand today:
   and the office has to read the thread to know which.
 
 This design makes the hand-off apply that rule to every work order it sweeps,
-with an AI reading the thread where the approval fields are empty, and a
-coordinator confirming what the AI found before anything $300+ is sent on the
-strength of a message alone.
+with an AI reading the thread where the approval fields are empty. The office
+chose (2026-11-19) that a confident reading sends the work order on its own,
+with no coordinator step: the point is that nobody has to check every work
+order by hand. The trade is made visible instead: every such send carries the
+owner's quoted words, names the rule that let it through, and is listed for
+the office to look over after the fact.
 
 ## Rules
 
@@ -35,8 +38,14 @@ on every assignment:
 | 1 | Estimate under $300 | Hand off now. Reason `under_threshold`. |
 | 2 | $300+, approval recorded (`approved_by` or `approved_date` set) | Hand off now. Reason `owner_approved_recorded`. |
 | 3 | $300+, nothing recorded, no estimate, or estimate unknown | Hold. The AI reads the work order (below). |
-| 3a | …AI finds an approval with confidence ≥ 80 | Coordinator queue: "Owner approved in messages, not entered yet". Hand off when a coordinator confirms. Reason `owner_approved_in_messages`, with the confirming user. |
+| 3a | …AI finds an approval with confidence ≥ 80 | Hand off now. Reason `owner_approved_in_messages`, with the reading attached. |
 | 3b | …AI finds no approval, or is not confident | Stays held. Re-read when a new message, note or description change arrives. |
+
+The confidence bar is `services.inspection_app.handoff_ai_confidence`, default
+80. `services.inspection_app.handoff_ai_requires_confirmation`, default false,
+turns rule 3a into a held state with a confirm button for the office, should
+it ever want a person back in the loop; it is off because the office asked
+for the send to be automatic.
 
 The estimate is the work order's `cost_estimate`. When that is empty, the
 in-house vendor's pivot `cost_estimate` is used. When both are empty the work
@@ -90,6 +99,31 @@ a vendor's "ok" is not the owner's.
 or `declined` decision must carry a verbatim quote; a decision without one is
 rejected and the reading is stored as failed, never as an approval.
 
+**What counts as approved.** Only a clear go-ahead from the owner, in the
+owner's own words: "go ahead", "approved", "yes, fix the light", "do it".
+The reading is told, in the prompt, to answer *not approved* for anything
+short of that, and the office's instruction (2026-11-19) is the rule: "if
+you feel the owner approved it then go; if the message is like not yet, or
+still unsure, do not send it." So these hold:
+
+- "not yet", "hold off", "let me think about it", "I'll get back to you".
+- A question back to the office ("how much would the door be?") with no
+  answer from the owner after it.
+- A condition the thread does not show met ("ok if it's under $400" with no
+  estimate given, or an estimate above it).
+- An approval of a *different* work order or an earlier, separate repair at
+  the same property.
+- Approval by anyone who is not the owner: tenant, vendor, the coordinator
+  writing "owner says ok" without the owner's own message. The coordinator's
+  own note is still read, and a coordinator who was told by phone enters the
+  approval in PropertyWare, which sends through rule 2.
+- Silence: a thread where the office asked and the owner never answered.
+
+When the owner approved some items and not others, the approved ones send
+the work order (rule 3a) and the reading says which, so the crew knows what
+not to touch. When the only approved item is one the thread later withdraws
+("actually, leave the light too"), the later message wins.
+
 **Where it lives.** A new `WorkOrderApprovalReader` service, built the way
 `TenantEasyFixReplyJudge` is: one reading stored as an `AiInsight` of a new
 type `owner_approval` on the work order, keyed by a hash of the text it read,
@@ -104,23 +138,22 @@ changed since its last reading. Bounded: at most N readings per sweep
 (config, default 20) so a backlog cannot run up a bill in one pass, and a
 reading is never repeated for unchanged text.
 
-## The coordinator queue
+## What the office sees
 
-A section on the existing work-orders view (the same place the hand-off outbox
-is reported) listing work orders in rule 3a: number, property, estimate, the
-AI's summary, each problem with its decision and quote, and two buttons:
+No queue to work through; that is the point. Two things instead:
 
-- **Confirm and send**: records who confirmed, marks the insight resolved,
-  and hands the work order off with reason `owner_approved_in_messages`.
-- **Not approved**: marks the insight resolved as rejected; the work order
-  stays held until the text changes.
+- **Sent by AI reading.** A filter on the existing hand-off outbox view
+  listing every work order sent under rule 3a: number, property, estimate,
+  the AI's summary, each problem with its decision and the owner's quoted
+  words, and when it went. The office looks here after the fact, and a wrong
+  one can be traced to exactly what the AI read.
+- **Held.** On the work order page, why a work order has not gone: "Waiting
+  for owner approval ($450 estimate, no approval recorded)" or "AI read 6
+  owner messages and found no approval". A coordinator entering the approval
+  in PropertyWare clears it on the next sweep through rule 2, as today.
 
-Entering the approval in PropertyWare also works, as it does today: the next
-sweep sees `approved_by` set and rule 2 sends it. The queue is for the office's
-speed, not a second system of record.
-
-The AI never writes the approval fields and never sends a $300+ work order by
-itself. Every automatic send is rule 0, 1 or 2.
+The AI never writes the approval fields in PropertyWare. What it does is let
+the hand-off go; the work order's own record is untouched.
 
 ## What the inspection app receives
 
@@ -133,8 +166,8 @@ The envelope (`HandoffPayload`) grows one block, always present:
   "estimate": 450.00,
   "recorded_by": null,
   "recorded_at": null,
-  "confirmed_by": "Maria (coordinator)",
-  "confirmed_at": "2026-11-19T15:04:00+00:00",
+  "ai_confidence": 92,
+  "ai_read_at": "2026-11-19T15:04:00+00:00",
   "summary": "Owner approved the hallway light on 2026-11-10 by text; declined the door; did not mention the lawn.",
   "problems": [ …as above… ]
 }
@@ -154,7 +187,8 @@ follows. No new permission, no schema change beyond the notes text.
 ## Records and audit
 
 - Every `InspectionAppHandoff` row gets a `rule` column naming which rule let
-  it through, and `confirmed_by_user_id` for rule 3a.
+  it through, and `ai_insight_id` for rule 3a, pointing at the reading that
+  did.
 - The `AiInsight` row keeps the full reading, the text hash, the model, and the
   confidence, so a wrong send can be traced to what the AI saw.
 - A held work order shows why on the work order page: "Waiting for owner
@@ -164,9 +198,9 @@ follows. No new permission, no schema change beyond the notes text.
 
 - No change to what counts as an in-house crew, or to the skip list.
 - No reading of tenant or vendor threads.
-- No automatic send above the threshold on the AI's word alone. If the office
-  later wants that, it is one config switch on rule 3a, and the evidence is
-  already on the envelope; it is left off deliberately.
+- No coordinator confirmation before an AI-read send. The office asked for
+  the send to be automatic; the `handoff_ai_requires_confirmation` switch
+  exists so that can be reversed without a code change.
 - No splitting of a work order into approved and declined visits. The whole
   work order goes, with the reading attached.
 - No change to the retry, idempotency or signing already in the hand-off.
@@ -178,8 +212,11 @@ follows. No new permission, no schema change beyond the notes text.
 - `WorkOrderApprovalReader`: the prompt built from fixtures with notes, an
   approval comment and a mixed owner thread; a fake provider returning a
   valid, a partial and a malformed answer; the hash guard; the per-sweep cap.
-- Queue: confirm and reject, who is recorded, and that confirm sends with the
-  right reason and the approval block on the payload.
+- Rule 3a end to end: a confident reading sends with reason
+  `owner_approved_in_messages`, the insight id on the outbox row and the
+  approval block on the payload; a reading under the bar holds; the
+  confirmation switch, when on, holds instead of sending.
+- The "Sent by AI reading" filter lists exactly those rows.
 - Intake (inspection app): the block lands in `internalNotes`, and an envelope
   without it still files as today.
 
@@ -187,8 +224,8 @@ follows. No new permission, no schema change beyond the notes text.
 
 1. Rules 0, 1 and 2 with the `rule` column and tests. Sends start flowing for
    the easy cases on their own.
-2. `WorkOrderApprovalReader`, the insight, the sweep cap, the held-state
-   display.
-3. The coordinator queue.
+2. `WorkOrderApprovalReader`, the insight, the sweep cap, rule 3a sending,
+   the held-state display.
+3. The "Sent by AI reading" filter on the outbox view.
 4. The `approval`, `notes` and `cost_estimate` fields on the envelope, then the
    inspection-side reader.
