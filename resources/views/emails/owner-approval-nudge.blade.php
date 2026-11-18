@@ -1,7 +1,7 @@
 @php
     $logoSrc = isset($message) ? $message->embed(public_path('tx-logo.png')) : asset('tx-logo.png');
 @endphp
-<x-mail.branded :logo="$logoSrc" eyebrow="Approval Needed" heading="Work Order #{{ $workOrder->work_order_no }}">
+<x-mail.branded :logo="$logoSrc" app-promo eyebrow="Approval Needed" heading="Work Order #{{ $workOrder->work_order_no }}">
     {{-- The same editable wording the text message carries, paragraph for paragraph. --}}
     <div style="margin:12px 0;">{!! nl2br(e($body)) !!}</div>
     @if (!empty($portalLink ?? null))

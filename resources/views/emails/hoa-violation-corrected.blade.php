@@ -1,7 +1,7 @@
 @php
     $logoSrc = isset($message) ? $message->embed(public_path('tx-logo.png')) : asset('tx-logo.png');
 @endphp
-<x-mail.branded :logo="$logoSrc" eyebrow="HOA Violation Corrected" heading="Work Order #{{ $workOrder->work_order_no ?? $workOrder->id }}">
+<x-mail.branded :logo="$logoSrc" app-promo eyebrow="HOA Violation Corrected" heading="Work Order #{{ $workOrder->work_order_no ?? $workOrder->id }}">
     <p style="margin:12px 0;">Hello,</p>
     <p style="margin:12px 0;">
         This is a confirmation from TexasRenters.com Maintenance that the HOA

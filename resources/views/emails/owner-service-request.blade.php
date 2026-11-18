@@ -6,7 +6,7 @@
     // description, so no separate details box.
     $staffCreated = $staffCreated ?? false;
 @endphp
-<x-mail.branded :logo="$logoSrc" :eyebrow="$staffCreated ? 'New Work Order' : 'New Service Request'" heading="Work Order #{{ $reference }}">
+<x-mail.branded :logo="$logoSrc" app-promo :eyebrow="$staffCreated ? 'New Work Order' : 'New Service Request'" heading="Work Order #{{ $reference }}">
     {{-- The same editable wording the text message carries, paragraph for paragraph. --}}
     <div style="margin:12px 0;">{!! nl2br(e($body)) !!}</div>
     @if (filled($description ?? null))

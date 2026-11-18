@@ -13,6 +13,7 @@ import {
 import GalleryTile from "@/Components/PortalGalleryTile.vue";
 import BrandHeader from "@/Components/PortalBrandHeader.vue";
 import BrandFooter from "@/Components/PortalBrandFooter.vue";
+import AppPromo from "@/Components/PortalAppPromo.vue";
 import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
 import {
     Loader2,
@@ -33,6 +34,7 @@ const props = defineProps({
     token: String,
     ownerName: String,
     wocName: String,
+    clientApp: Object,
     workOrder: Object,
     approval: { type: Object, default: () => ({}) },
     messages: { type: Array, default: () => [] },
@@ -1088,6 +1090,8 @@ watch(photoFilters, (filters) => {
                     </div>
                 </div>
             </div>
+
+            <AppPromo :app="clientApp" />
 
             <BrandFooter label="Owner Portal" />
         </div>

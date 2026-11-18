@@ -93,6 +93,10 @@ class TenantPortalTest extends TestCase
                 ->where('workOrder.work_order_no', 43361)
                 ->where('workOrder.address', '6341 Del Monte Dr')
                 ->where('tenantName', 'Dana')
+                ->where('clientApp.app_store_url', config('client_app.app_store_url'))
+                ->where('clientApp.play_store_url', config('client_app.play_store_url'))
+                ->where('clientApp.app_video_url', 'https://youtu.be/8oDalAMczQs')
+                ->where('clientApp.signup_video_url', config('client_app.signup_video_url'))
                 ->where('completed', false));
     }
 

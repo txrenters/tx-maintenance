@@ -1,7 +1,7 @@
 @php
     $logoSrc = isset($message) ? $message->embed(public_path('tx-logo.png')) : asset('tx-logo.png');
 @endphp
-<x-mail.branded :logo="$logoSrc" eyebrow="Vendor Assigned" heading="Work Order #{{ $workOrder->work_order_no }}">
+<x-mail.branded :logo="$logoSrc" app-promo eyebrow="Vendor Assigned" heading="Work Order #{{ $workOrder->work_order_no }}">
     <p style="margin:12px 0;">Hello {{ $owner->name ?: trim($owner->first_name.' '.$owner->last_name) }},</p>
     <p style="margin:12px 0;">
         We have assigned <strong>{{ $vendor->name }}</strong>@if ($vendor->phone) ({{ $vendor->phone }})@endif

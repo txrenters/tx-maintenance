@@ -92,6 +92,10 @@ class OwnerPortalTest extends TestCase
                 ->where('ownerName', 'Olivia')
                 ->where('workOrder.work_order_no', 43900)
                 ->where('workOrder.address', '6341 Del Monte Dr')
+                ->where('clientApp.app_store_url', config('client_app.app_store_url'))
+                ->where('clientApp.play_store_url', config('client_app.play_store_url'))
+                ->where('clientApp.app_video_url', 'https://youtu.be/8oDalAMczQs')
+                ->where('clientApp.signup_video_url', config('client_app.signup_video_url'))
             );
     }
 

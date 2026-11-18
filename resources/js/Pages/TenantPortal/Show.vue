@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import GalleryTile from "@/Components/PortalGalleryTile.vue";
 import BrandHeader from "@/Components/PortalBrandHeader.vue";
 import BrandFooter from "@/Components/PortalBrandFooter.vue";
+import AppPromo from "@/Components/PortalAppPromo.vue";
 import { usePickedFiles } from "@/composables/usePickedFiles";
 import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
 import {
@@ -27,6 +28,7 @@ const props = defineProps({
     token: String,
     tenantName: String,
     wocName: String,
+    clientApp: Object,
     completed: Boolean,
     isHoa: Boolean,
     canCreateRequest: Boolean,
@@ -968,6 +970,8 @@ watch(photoFilters, (filters) => {
                     </div>
                 </div>
             </div>
+
+            <AppPromo :app="clientApp" />
 
             <BrandFooter label="Tenant Portal" />
         </div>

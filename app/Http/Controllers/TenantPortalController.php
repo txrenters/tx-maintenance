@@ -103,6 +103,7 @@ class TenantPortalController extends Controller
             'token' => $uploadToken->token,
             'tenantName' => trim((string) ($tenant?->first_name ?? '')),
             'wocName' => $workOrder->woc?->name,
+            'clientApp' => config('client_app'),
             'completed' => $uploadToken->isCompleted(),
             'isHoa' => $isHoa,
             // Deliberately not gated on the request being open: a closed request
