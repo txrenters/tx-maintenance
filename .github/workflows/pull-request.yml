@@ -61,7 +61,7 @@ jobs:
       - name: Run tests
         env:
           DB_CONNECTION: sqlite
-        run: php -d memory_limit=1G artisan test --compact
+        run: php -d memory_limit=1G artisan test
 
   # The Dockerfile installs Node through NodeSource rather than setup-node, so
   # the job above never exercises it. Building the image is the only check that
