@@ -5,7 +5,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title inertia>{{ config('app.name', 'TX RenterSync Propertyware') }}</title>
-        <link rel="icon" type="image/png" href="{{ asset('logo.png')}}" />
+        <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}" />
+        <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('maintenance-icon-192.png') }}" />
+        <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}" />
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

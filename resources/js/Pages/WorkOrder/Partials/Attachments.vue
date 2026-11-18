@@ -16,6 +16,7 @@ import ImageCropper from "./ImageCropper.vue";
 import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
 import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
+import { groupByTurnoverArea } from "@/utils/turnoverAreas";
 
 const { toast } = useToast();
 
@@ -57,10 +58,17 @@ const afterPics = computed(() => {
     );
 });
 
+// Turnover vendors file each after photo under a part of the home; when any
+// photo carries one, the section is shown room by room instead of as one list.
+const afterPicGroups = computed(() => groupByTurnoverArea(afterPics.value));
+
 // PropertyWare documents are streamed through our download route (images are
 // served inline), so the same URL works for both the thumbnail and the link.
+// The remembered rotation rides along as a query string so a turn never shows
+// a cached copy of the old way up.
 const documentUrl = (doc) =>
-    route("api.work_order_documents.download", doc.id);
+    route("api.work_order_documents.download", doc.id) +
+    (doc.rotation ? `?r=${doc.rotation}` : "");
 
 const isImageDocument = (doc) => {
     if (doc.file_type) {
@@ -137,24 +145,34 @@ const galleryIndex = ref(0);
 const galleryCanDelete = ref(true);
 const deleteFileForm = useForm({ id: "" });
 
+// Which list the open viewer is showing: our uploads (Delete + Rotate) or
+// PropertyWare documents (Rotate only — their bytes live in PropertyWare).
+const galleryMode = ref("attachment");
+
+const documentPhotos = () =>
+    (props.workOrderDocuments || []).filter(isImageDocument);
+
+const documentToSlide = (item) => ({
+    id: item.id,
+    url: documentUrl(item),
+    name: item.file_name || "Document",
+    downloadName: attachmentDownloadName(
+        item.file_name,
+        item.file_name,
+        item.file_type
+    ),
+});
+
 // PropertyWare image documents step through the same viewer as uploaded
-// photos. They are read-only here, so the Delete footer stays out.
+// photos. They can't be deleted here, so the Delete footer stays out.
 const openDocumentGallery = (doc) => {
-    const photos = (props.workOrderDocuments || []).filter(isImageDocument);
-    galleryImages.value = photos.map((item) => ({
-        id: item.id,
-        url: documentUrl(item),
-        name: item.file_name || "Document",
-        downloadName: attachmentDownloadName(
-            item.file_name,
-            item.file_name,
-            item.file_type
-        ),
-    }));
+    const photos = documentPhotos();
+    galleryImages.value = photos.map(documentToSlide);
     galleryIndex.value = Math.max(
         0,
         photos.findIndex((item) => item.id === doc.id)
     );
+    galleryMode.value = "document";
     galleryCanDelete.value = false;
     openGallery.value = true;
 };
@@ -165,34 +183,115 @@ const sectionFor = (file) => {
     return attachmentFile.value;
 };
 
-const handleExpandImage = (imageSelected) => {
-    const photos = sectionFor(imageSelected).filter((file) =>
+const sectionPhotos = (section) =>
+    sectionFor({ type: section }).filter((file) =>
         String(file.filetype || "").startsWith("image/")
     );
-    galleryImages.value = photos.map((file) => ({
-        id: file.id,
-        url: file.attachment_url,
-        name: file.title,
-        downloadName: attachmentDownloadName(
-            file.title,
-            file.filename,
-            file.filetype
-        ),
-    }));
+
+const toSlide = (file) => ({
+    id: file.id,
+    url: file.attachment_url,
+    name: file.title,
+    downloadName: attachmentDownloadName(
+        file.title,
+        file.filename,
+        file.filetype
+    ),
+});
+
+// Remembered so the slides can be rebuilt from fresh props after a rotate.
+const gallerySection = ref("attachment");
+const galleryRotationPreview = ref(0);
+
+const handleExpandImage = (imageSelected) => {
+    gallerySection.value = imageSelected.type;
+    const photos = sectionPhotos(imageSelected.type);
+    galleryImages.value = photos.map(toSlide);
     galleryIndex.value = Math.max(
         0,
         photos.findIndex((file) => file.id === imageSelected.id)
     );
     deleteFileForm.id = imageSelected.id;
+    galleryMode.value = "attachment";
     galleryCanDelete.value = true;
     openGallery.value = true;
 };
 
-// Delete acts on whichever photo is on screen.
+// Delete and Rotate act on whichever photo is on screen.
 watch(galleryIndex, (index) => {
     const photo = galleryImages.value[index];
     if (photo) deleteFileForm.id = photo.id;
+    galleryRotationPreview.value = 0;
 });
+
+// Rotate saves the turn: an upload is rewritten on disk (new filename, new
+// thumbnail); a PropertyWare document remembers the turn and is served turned.
+// Either way the photo stays upright for everyone from then on. The picture
+// turns on screen right away and the saved copy replaces it when the refetch
+// lands.
+const rotateForm = useForm({ direction: "" });
+
+const handleRotateImage = (direction) => {
+    const photo = galleryImages.value[galleryIndex.value];
+    if (!photo || rotateForm.processing) return;
+
+    const url =
+        galleryMode.value === "document"
+            ? route("api.work_order_documents.rotate", photo.id)
+            : route("api.attachments.rotate", photo.id);
+
+    galleryRotationPreview.value += direction === "clockwise" ? 90 : -90;
+    rotateForm.direction = direction;
+    rotateForm.post(url, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            handleFetchAttachment();
+        },
+        onError: (errors) => {
+            galleryRotationPreview.value = 0;
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    errors?.direction ||
+                    "The photo could not be rotated. Please try again!",
+            });
+        },
+    });
+};
+
+// When the refreshed list arrives, swap the slides for the saved files and
+// drop the on-screen preview — the new file already has the turn baked in.
+const refreshGallerySlides = (photos, toSlideFor) => {
+    const current = galleryImages.value[galleryIndex.value];
+    if (!photos.length) {
+        openGallery.value = false;
+        return;
+    }
+    galleryImages.value = photos.map(toSlideFor);
+    galleryIndex.value = Math.max(
+        0,
+        photos.findIndex((item) => item.id === current?.id)
+    );
+    galleryRotationPreview.value = 0;
+};
+
+watch(
+    () => props.workOrderAttachments,
+    () => {
+        if (!openGallery.value || galleryMode.value !== "attachment") return;
+        refreshGallerySlides(sectionPhotos(gallerySection.value), toSlide);
+    }
+);
+
+watch(
+    () => props.workOrderDocuments,
+    () => {
+        if (!openGallery.value || galleryMode.value !== "document") return;
+        refreshGallerySlides(documentPhotos(), documentToSlide);
+    }
+);
 
 const openDeleteModal = ref(false);
 const handleDeleteImage = (imageSelected) => {
@@ -465,7 +564,28 @@ function handleFiles(event) {
                 >
                     After Pictures
                 </p>
+                <template v-if="afterPicGroups">
+                    <div
+                        v-for="group in afterPicGroups"
+                        :key="group.label"
+                        class="mb-4"
+                    >
+                        <p class="text-sm font-semibold mb-2 pb-1 border-b">
+                            {{ group.label }}
+                            <span class="font-normal text-muted-foreground"
+                                >({{ group.files.length }})</span
+                            >
+                        </p>
+                        <Files
+                            :files="group.files"
+                            :loading="isLoading"
+                            @expandImage="handleExpandImage"
+                            @deleteImage="handleDeleteImage"
+                        />
+                    </div>
+                </template>
                 <Files
+                    v-else
                     :files="afterPics"
                     :loading="isLoading"
                     @expandImage="handleExpandImage"
@@ -493,6 +613,10 @@ function handleFiles(event) {
             v-model:open="openGallery"
             v-model:index="galleryIndex"
             :images="galleryImages"
+            rotatable
+            :rotating="rotateForm.processing"
+            :rotation-preview="galleryRotationPreview"
+            @rotate="handleRotateImage"
         >
             <template v-if="galleryCanDelete" #footer>
                 <Button

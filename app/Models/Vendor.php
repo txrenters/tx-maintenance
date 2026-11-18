@@ -45,13 +45,51 @@ class Vendor extends Model
     public const CRYSTAL_CREEK_NAME_PREFIX = 'crystal creek';
 
     protected $fillable = [
-        'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
+        'propertyware_id', 'name', 'email', 'cc_emails', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'zones' => 'array',
+        'cc_emails' => 'array',
     ];
+
+    /**
+     * Extra addresses copied on every email the app sends this vendor (an
+     * office inbox, a partner), lower-cased, de-duplicated, and never the
+     * vendor's own address, which is already the recipient.
+     *
+     * @return list<string>
+     */
+    public function ccEmailList(): array
+    {
+        $own = Str::lower(trim((string) $this->email));
+
+        return collect($this->cc_emails ?? [])
+            ->map(fn ($address) => Str::lower(trim((string) $address)))
+            ->filter(fn ($address) => $address !== '' && $address !== $own)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Parse what staff typed into the "Also email" box: addresses separated by
+     * commas, semicolons, spaces or new lines. Returns null when nothing is left.
+     *
+     * @return list<string>|null
+     */
+    public static function parseCcEmails(?string $raw): ?array
+    {
+        $list = collect(preg_split('/[\s,;]+/', (string) $raw) ?: [])
+            ->map(fn ($address) => Str::lower(trim($address)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $list === [] ? null : $list;
+    }
 
     public function user(): BelongsTo
     {

@@ -56,18 +56,26 @@ class VendorPortalTest extends TestCase
         ]);
     }
 
-    private function makeWorkOrder(): WorkOrder
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeWorkOrder(array $overrides = []): WorkOrder
     {
         $serviceStatus = ServiceStatus::query()->create([
             'name' => 'New',
             'description' => 'New',
         ]);
 
-        return WorkOrder::factory()->create([
+        return WorkOrder::factory()->create(array_merge([
             'service_status_id' => $serviceStatus->id,
             'work_order_no' => 4567,
             'description' => 'Leaking kitchen sink',
-        ]);
+        ], $overrides));
+    }
+
+    private function makeTurnoverWorkOrder(): WorkOrder
+    {
+        return $this->makeWorkOrder(['type' => 'Turnover', 'description' => 'Make ready']);
     }
 
     public function test_coordinator_sees_copyable_vendor_links_on_work_order(): void
@@ -361,6 +369,273 @@ class VendorPortalTest extends TestCase
             'work_order_id' => $workOrder->id,
             'title' => 'Vendor attachment - WO#4567',
         ]);
+    }
+
+    public function test_turnover_work_order_offers_the_after_photo_areas(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $last = count(Attachments::TURNOVER_AREAS) - 1;
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('turnoverAreas', count(Attachments::TURNOVER_AREAS))
+                ->where('turnoverAreas.0', 'Entrance')
+                ->where('turnoverAreas.'.$last, 'Haul Away'));
+    }
+
+    public function test_a_turnover_tagged_only_by_category_offers_the_areas_too(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder(['type' => 'Repair', 'category' => 'Turnover']);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('turnoverAreas', count(Attachments::TURNOVER_AREAS)));
+    }
+
+    public function test_a_repair_work_order_offers_no_photo_areas(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('turnoverAreas', 0));
+    }
+
+    public function test_a_turnover_after_photo_is_filed_under_its_area(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => 'Kitchen',
+            'files' => [UploadedFile::fake()->image('kitchen-1.jpg'), UploadedFile::fake()->image('kitchen-2.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('attachments', 2);
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'type' => 'after',
+            'area' => 'Kitchen',
+            'title' => 'Kitchen - Vendor photo (after) - WO#4567',
+        ]);
+        $this->assertSame(2, Attachments::query()->where('area', 'Kitchen')->count());
+    }
+
+    public function test_each_photo_in_a_batch_keeps_its_own_area(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'files' => [
+                UploadedFile::fake()->image('kitchen.jpg'),
+                UploadedFile::fake()->image('game.jpg'),
+                UploadedFile::fake()->image('bed.jpg'),
+                UploadedFile::fake()->image('wide.jpg'),
+            ],
+            'areas' => ['Kitchen', 'Game Room', 'Bedroom 1', ''],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('attachments', 4);
+        foreach (['Kitchen', 'Game Room', 'Bedroom 1'] as $area) {
+            $this->assertDatabaseHas('attachments', [
+                'work_order_id' => $workOrder->id,
+                'area' => $area,
+                'title' => $area.' - Vendor photo (after) - WO#4567',
+            ]);
+        }
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'area' => null,
+            'title' => 'Vendor photo (after) - WO#4567',
+        ]);
+    }
+
+    public function test_a_photo_without_its_own_area_falls_back_to_the_batch_area(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => 'Garage',
+            'files' => [UploadedFile::fake()->image('a.jpg'), UploadedFile::fake()->image('b.jpg')],
+            'areas' => ['Lawn', ''],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', ['area' => 'Lawn', 'title' => 'Lawn - Vendor photo (after) - WO#4567']);
+        $this->assertDatabaseHas('attachments', ['area' => 'Garage', 'title' => 'Garage - Vendor photo (after) - WO#4567']);
+    }
+
+    public function test_a_per_photo_area_outside_the_list_is_refused(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'files' => [UploadedFile::fake()->image('a.jpg')],
+            'areas' => ['Attic'],
+        ])->assertRedirect()->assertSessionHasErrors('areas.0');
+
+        $this->assertDatabaseCount('attachments', 0);
+    }
+
+    public function test_a_typed_description_keeps_the_area_in_front(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'title' => 'Shower regrouted',
+            'type' => 'after',
+            'area' => 'Bathroom 2',
+            'files' => [UploadedFile::fake()->image('shower.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'area' => 'Bathroom 2',
+            'title' => 'Bathroom 2 - Shower regrouted',
+        ]);
+    }
+
+    public function test_an_after_photo_with_no_area_is_stored_as_before(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => '',
+            'files' => [UploadedFile::fake()->image('wide.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'area' => null,
+            'title' => 'Vendor photo (after) - WO#4567',
+        ]);
+    }
+
+    public function test_the_area_is_ignored_on_a_repair_work_order(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => 'Kitchen',
+            'files' => [UploadedFile::fake()->image('repair.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'area' => null,
+            'title' => 'Vendor photo (after) - WO#4567',
+        ]);
+    }
+
+    public function test_the_area_is_ignored_on_a_before_photo(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'before',
+            'area' => 'Kitchen',
+            'files' => [UploadedFile::fake()->image('before.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'type' => 'before',
+            'area' => null,
+            'title' => 'Vendor photo (before) - WO#4567',
+        ]);
+    }
+
+    public function test_an_area_outside_the_list_is_refused(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'after',
+            'area' => 'Attic',
+            'files' => [UploadedFile::fake()->image('attic.jpg')],
+        ])->assertRedirect()->assertSessionHasErrors('area');
+
+        $this->assertDatabaseCount('attachments', 0);
+    }
+
+    public function test_the_portal_lists_each_photo_with_its_area(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeTurnoverWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        Attachments::query()->create([
+            'title' => 'Kitchen - Vendor photo (after) - WO#4567',
+            'filename' => 'attachments/kitchen.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'after',
+            'area' => 'Kitchen',
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendor->user_id,
+        ]);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 1)
+                ->where('attachments.0.area', 'Kitchen'));
     }
 
     public function test_portal_shows_only_tasks_assigned_to_the_vendor(): void

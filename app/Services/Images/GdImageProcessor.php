@@ -83,20 +83,11 @@ class GdImageProcessor implements ImageProcessor
         try {
             ini_set('memory_limit', (string) config('thumbnails.max_memory'));
 
-            $contents = @file_get_contents($absolutePath);
+            $source = $this->decodeOriented($absolutePath, $probe['mime']);
 
-            if ($contents === false || $contents === '') {
+            if ($source === null) {
                 return null;
             }
-
-            $source = @imagecreatefromstring($contents);
-            unset($contents);
-
-            if ($source === false) {
-                return null;
-            }
-
-            $source = $this->applyOrientation($source, $absolutePath, $probe['mime']);
 
             $width = imagesx($source);
             $height = imagesy($source);
@@ -147,6 +138,123 @@ class GdImageProcessor implements ImageProcessor
 
             ini_set('memory_limit', $previousMemoryLimit);
         }
+    }
+
+    public function rotate(string $absolutePath, int $degreesClockwise): ?string
+    {
+        if (! in_array($degreesClockwise, [90, 180, 270], true)) {
+            return null;
+        }
+
+        $probe = $this->probe($absolutePath);
+
+        if ($probe === null || ! $this->supports($probe['mime'])) {
+            return null;
+        }
+
+        if ((int) config('thumbnails.max_pixels') < $probe['width'] * $probe['height']) {
+            Log::warning('Rotation skipped: image exceeds the pixel budget', [
+                'path' => $absolutePath,
+                'width' => $probe['width'],
+                'height' => $probe['height'],
+            ]);
+
+            return null;
+        }
+
+        $previousMemoryLimit = ini_get('memory_limit');
+        $source = null;
+        $rotated = null;
+
+        try {
+            ini_set('memory_limit', (string) config('thumbnails.max_memory'));
+
+            $source = $this->decodeOriented($absolutePath, $probe['mime']);
+
+            if ($source === null) {
+                return null;
+            }
+
+            // Keep transparent corners transparent rather than filling them black.
+            imagealphablending($source, false);
+            imagesavealpha($source, true);
+            $transparent = imagecolorallocatealpha($source, 0, 0, 0, 127);
+
+            // imagerotate turns counter-clockwise, so a clockwise quarter turn is 270.
+            $rotated = @imagerotate($source, (360 - $degreesClockwise) % 360, $transparent);
+
+            if ($rotated === false) {
+                return null;
+            }
+
+            imagealphablending($rotated, false);
+            imagesavealpha($rotated, true);
+
+            return $this->encode($rotated, $probe['mime']);
+        } catch (\Throwable $e) {
+            Log::warning('Image rotation failed', [
+                'path' => $absolutePath,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        } finally {
+            if ($source instanceof GdImage) {
+                imagedestroy($source);
+            }
+
+            if ($rotated instanceof GdImage) {
+                imagedestroy($rotated);
+            }
+
+            ini_set('memory_limit', $previousMemoryLimit);
+        }
+    }
+
+    /**
+     * Decode the file into a bitmap that already shows the way up the browser
+     * showed it (EXIF orientation applied). The caller destroys the image.
+     */
+    private function decodeOriented(string $absolutePath, string $mime): ?GdImage
+    {
+        $contents = @file_get_contents($absolutePath);
+
+        if ($contents === false || $contents === '') {
+            return null;
+        }
+
+        $source = @imagecreatefromstring($contents);
+        unset($contents);
+
+        if ($source === false) {
+            return null;
+        }
+
+        return $this->applyOrientation($source, $absolutePath, $mime);
+    }
+
+    /**
+     * Re-encode in the format the file arrived in, so the extension, the mime
+     * stored on the row and the name PropertyWare knows it by all stay true.
+     */
+    private function encode(GdImage $image, string $mime): ?string
+    {
+        ob_start();
+
+        $encoded = match ($mime) {
+            'image/png' => imagepng($image, null, 6),
+            'image/gif' => imagegif($image),
+            'image/webp' => imagewebp($image, null, 90),
+            default => imagejpeg($image, null, 90),
+        };
+
+        $bytes = ob_get_clean();
+
+        if (! $encoded || $bytes === false || $bytes === '') {
+            return null;
+        }
+
+        return $bytes;
     }
 
     /**

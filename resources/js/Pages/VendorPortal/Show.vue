@@ -34,6 +34,9 @@ const props = defineProps({
     tasks: { type: Array, default: () => [] },
     estimate: { type: Object, default: () => ({}) },
     attachments: { type: Array, default: () => [] },
+    // Parts of the home an "after" photo can be filed under. Only a turnover
+    // job sends any; every other job leaves it empty and shows no picker.
+    turnoverAreas: { type: Array, default: () => [] },
     invoices: { type: Array, default: () => [] },
     // False until this vendor has uploaded a photo of their own to this work
     // order. The server refuses the invoice either way; this only keeps the
@@ -212,6 +215,10 @@ const photoTypes = [
     { value: "attachment", label: "Other" },
 ];
 const photoTitle = ref("");
+const photoArea = ref("");
+const showAreaPicker = computed(
+    () => props.turnoverAreas.length > 0 && photoType.value === "after",
+);
 const selectedFiles = ref([]);
 const selectedPreviews = ref([]);
 const photoInput = ref(null);
@@ -235,6 +242,10 @@ const onPickFiles = (e) => {
             name: file.name,
             isImage: image,
             url: image ? URL.createObjectURL(file) : null,
+            // Each photo keeps the area that was selected when it was added,
+            // so a vendor can pick Kitchen, add a photo, pick Game Room, add
+            // another, and upload once. Editable per tile below.
+            area: showAreaPicker.value ? photoArea.value : "",
         });
     });
     // Reset so re-picking the same file still fires @change.
@@ -255,7 +266,12 @@ const uploadPhotos = () => {
     const data = new FormData();
     data.append("title", photoTitle.value.trim());
     data.append("type", photoType.value);
-    selectedFiles.value.forEach((file) => data.append("files[]", file));
+    selectedFiles.value.forEach((file, i) => {
+        data.append("files[]", file);
+        if (showAreaPicker.value) {
+            data.append("areas[]", selectedPreviews.value[i]?.area || "");
+        }
+    });
 
     router.post(route("vendor.portal.attachments", props.token), data, {
         preserveScroll: true,
@@ -264,6 +280,7 @@ const uploadPhotos = () => {
             selectedFiles.value = [];
             selectedPreviews.value = [];
             photoTitle.value = "";
+            photoArea.value = "";
             if (photoInput.value) photoInput.value.value = "";
         },
         onFinish: () => (uploading.value = false),
@@ -1021,6 +1038,34 @@ const confirmCompleteTask = () => {
                                 </button>
                             </div>
 
+                            <!-- Turnover jobs: file the after photos by part of the home -->
+                            <div v-if="showAreaPicker">
+                                <label
+                                    for="photo-area"
+                                    class="text-xs font-medium text-muted-foreground"
+                                    >Area of the home</label
+                                >
+                                <select
+                                    id="photo-area"
+                                    v-model="photoArea"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                >
+                                    <option value="">Choose an area…</option>
+                                    <option
+                                        v-for="area in turnoverAreas"
+                                        :key="area"
+                                        :value="area"
+                                    >
+                                        {{ area }}
+                                    </option>
+                                </select>
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Pick the room, then add its photos. Each
+                                    photo keeps the room it was added under;
+                                    change it on the photo if needed.
+                                </p>
+                            </div>
+
                             <label
                                 class="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-input py-7 text-muted-foreground cursor-pointer active:bg-accent"
                             >
@@ -1053,30 +1098,50 @@ const confirmCompleteTask = () => {
                                 <div
                                     v-for="(p, i) in selectedPreviews"
                                     :key="i"
-                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                    class="flex flex-col gap-1"
                                 >
-                                    <img
-                                        v-if="p.isImage"
-                                        :src="p.url"
-                                        class="w-full h-full object-cover"
-                                    />
                                     <div
-                                        v-else
-                                        class="flex flex-col items-center justify-center gap-1 w-full px-1"
+                                        class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
                                     >
-                                        <FileText class="w-6 h-6 text-muted-foreground" />
-                                        <span
-                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
-                                            >{{ p.name }}</span
+                                        <img
+                                            v-if="p.isImage"
+                                            :src="p.url"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <div
+                                            v-else
+                                            class="flex flex-col items-center justify-center gap-1 w-full px-1"
                                         >
+                                            <FileText class="w-6 h-6 text-muted-foreground" />
+                                            <span
+                                                class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
+                                                >{{ p.name }}</span
+                                            >
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                            @click="removeSelectedFile(i)"
+                                        >
+                                            <X class="w-3 h-3" />
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
-                                        @click="removeSelectedFile(i)"
+                                    <select
+                                        v-if="showAreaPicker"
+                                        v-model="p.area"
+                                        :aria-label="`Area for ${p.name}`"
+                                        class="w-full rounded-md border border-input bg-background text-foreground px-1 py-1 text-xs focus:border-ring focus:ring-0"
+                                        :class="{ 'border-amber-500': !p.area }"
                                     >
-                                        <X class="w-3 h-3" />
-                                    </button>
+                                        <option value="">No area</option>
+                                        <option
+                                            v-for="area in turnoverAreas"
+                                            :key="area"
+                                            :value="area"
+                                        >
+                                            {{ area }}
+                                        </option>
+                                    </select>
                                 </div>
                             </div>
 

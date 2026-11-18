@@ -61,6 +61,7 @@ import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
 import JobNotesTab from "./partials/JobNotesTab.vue";
 import JobCloseAction from "./partials/JobCloseAction.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import DownloadJobMessagesPdfButton from "@/Components/Jobber/DownloadJobMessagesPdfButton.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
 import { useEchoPublic } from "@laravel/echo-vue";
@@ -1695,7 +1696,13 @@ usePoll(15000, {
                 v-if="activeTab === 'messages' && selectedJob"
                 class="grid gap-1 overflow-y-auto px-6"
             >
-                <p class="font-semibold uppercase text-xs">Job Messages</p>
+                <div class="flex items-center justify-between">
+                    <p class="font-semibold uppercase text-xs">Job Messages</p>
+                    <DownloadJobMessagesPdfButton
+                        :job-id="selectedJob.id"
+                        :our-number="senderPhoneNumber || ''"
+                    />
+                </div>
 
                 <!-- Contact Selection & Recipients - All Inline -->
                 <div

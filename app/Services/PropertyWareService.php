@@ -288,7 +288,11 @@ class PropertyWareService
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
 
-            return 'Error: '.$e->getMessage();
+            // An empty list, never an error string: the scheduled importers
+            // count() and chunk the result, and a string turned every
+            // PropertyWare hiccup into a TypeError that killed the whole run
+            // (eight times in October 2026).
+            return [];
         }
 
     }
@@ -354,7 +358,8 @@ class PropertyWareService
         } catch (Exception $e) {
             Log::error('REST API request failed: '.$e->getMessage());
 
-            return 'Error: '.$e->getMessage();
+            // See getWorkOrders(): the status sync count()s this too.
+            return [];
         }
 
     }

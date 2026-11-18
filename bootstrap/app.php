@@ -10,6 +10,7 @@ use App\Http\Middleware\ResolveVendorAccountToken;
 use App\Http\Middleware\ResolveVendorPortalToken;
 use App\Http\Middleware\UpgradeToHttpsUnderNgrok;
 use App\Http\Middleware\ValidateApiKey;
+use App\PortalSso\EnsurePortalSession;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -48,8 +49,12 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
 
             UpgradeToHttpsUnderNgrok::class,
-
+            // Staff sessions re-check with the TR Staff Portal every few minutes.
+            EnsurePortalSession::class,
         ]);
+
+        // The portal posts signed logout tokens server-to-server; the signature replaces CSRF.
+        $middleware->validateCsrfTokens(except: ['auth/portal/backchannel-logout']);
 
         $middleware->trustProxies(at: '*');
 

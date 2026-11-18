@@ -382,12 +382,20 @@ const switchTab = (tabName) => {
     }
 };
 
+// The modal is shared by every work order, so a reply can land after staff
+// have moved on to another one. Its people must not fill the new work order's
+// To box.
+const isStaleResponse = (workOrderId) =>
+    String(workOrderId) !== String(state.workOrderId);
+
 const fetchOwnerConversation = async (workOrderId) => {
     try {
         isLoading.value = true;
         const response = await axios.get(
             route("work_order.owner_conversation", workOrderId)
         );
+
+        if (isStaleResponse(workOrderId)) return;
 
         ownerConversation.value = response.data.owner_conversation;
         workOrderOwners.value = response.data.owners;
@@ -405,6 +413,8 @@ const fetchTenantConversation = async (workOrderId) => {
             route("work_order.tenant_conversation", workOrderId)
         );
 
+        if (isStaleResponse(workOrderId)) return;
+
         tenantConversation.value = response.data.tenant_conversation;
         workOrderTenants.value = response.data.tenants;
     } catch (error) {
@@ -420,6 +430,8 @@ const fetchVendorTenantConversation = async (workOrderId) => {
         const response = await axios.get(
             route("work_order.vendor_tenant_conversation", workOrderId)
         );
+
+        if (isStaleResponse(workOrderId)) return;
 
         vendorTenantConversation.value =
             response.data.vendor_tenant_conversation;
@@ -455,6 +467,8 @@ const fetchVendorOwnerConversation = async (workOrderId) => {
             route("work_order.vendor_owner_conversation", workOrderId)
         );
 
+        if (isStaleResponse(workOrderId)) return;
+
         vendorOwnerConversation.value = response.data.vendor_owner_conversation;
         workOrderOwners.value = response.data.owners;
         workOrderVendors.value = response.data.vendors;
@@ -485,6 +499,9 @@ const fetchVendorServiceSchedules = async (workOrderId) => {
         const response = await axios.get(
             route("work_order.service_schedules", workOrderId)
         );
+
+        if (isStaleResponse(workOrderId)) return;
+
         vendorServiceSchedules.value = response.data.service_schedules;
         workOrderVendors.value = response.data.vendors;
         workOrderTenants.value = response.data.tenants;
@@ -676,6 +693,12 @@ const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
     activeTab.value = "details";
     workOrderTasks.value = [];
+    // These outlive the work order they were fetched for, and a message tab
+    // preselects its recipient from them.
+    workOrderOwners.value = [];
+    workOrderTenants.value = [];
+    ownerConversation.value = [];
+    tenantConversation.value = [];
     recommendation.value = null;
     isGeneratingRecommendation.value = false;
     isLoading.value = true;

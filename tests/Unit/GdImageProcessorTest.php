@@ -177,6 +177,67 @@ class GdImageProcessorTest extends TestCase
         $this->assertSame([400, 200], $this->dimensionsOf($bytes));
     }
 
+    public function test_rotate_turns_a_quarter_clockwise_in_the_same_format(): void
+    {
+        $bytes = $this->processor->rotate($this->makeImage(200, 100, 'png'), 90);
+
+        $this->assertNotNull($bytes);
+        $this->assertSame('image/png', getimagesizefromstring($bytes)['mime']);
+        $this->assertSame([100, 200], $this->dimensionsOf($bytes));
+    }
+
+    public function test_rotate_keeps_jpeg_as_jpeg(): void
+    {
+        $bytes = $this->processor->rotate($this->makeImage(200, 100), 270);
+
+        $this->assertNotNull($bytes);
+        $this->assertSame('image/jpeg', getimagesizefromstring($bytes)['mime']);
+        $this->assertSame([100, 200], $this->dimensionsOf($bytes));
+    }
+
+    public function test_rotate_by_a_half_turn_keeps_the_dimensions(): void
+    {
+        $bytes = $this->processor->rotate($this->makeImage(200, 100, 'webp'), 180);
+
+        $this->assertNotNull($bytes);
+        $this->assertSame('image/webp', getimagesizefromstring($bytes)['mime']);
+        $this->assertSame([200, 100], $this->dimensionsOf($bytes));
+    }
+
+    public function test_rotate_accepts_only_quarter_turns(): void
+    {
+        $path = $this->makeImage(200, 100);
+
+        $this->assertNull($this->processor->rotate($path, 0));
+        $this->assertNull($this->processor->rotate($path, 45));
+        $this->assertNull($this->processor->rotate($path, 360));
+    }
+
+    public function test_rotate_returns_null_for_bytes_gd_cannot_decode(): void
+    {
+        $this->assertNull($this->processor->rotate($this->writeTempFile('not an image', 'jpg'), 90));
+        $this->assertNull($this->processor->rotate(sys_get_temp_dir().'/does-not-exist.jpg', 90));
+    }
+
+    public function test_rotate_refuses_images_over_the_pixel_budget(): void
+    {
+        config(['thumbnails.max_pixels' => 100]);
+
+        $this->assertNull($this->processor->rotate($this->makeImage(400, 400), 90));
+    }
+
+    public function test_rotate_bakes_exif_orientation_before_turning(): void
+    {
+        // Orientation 6 shows an 800x400 file as portrait 400x800; a quarter turn
+        // of what the user SEES must therefore come out landscape 800x400.
+        $path = $this->writeTempFile($this->jpegWithOrientation(800, 400, 6), 'jpg');
+
+        $bytes = $this->processor->rotate($path, 90);
+
+        $this->assertNotNull($bytes);
+        $this->assertSame([800, 400], $this->dimensionsOf($bytes));
+    }
+
     /**
      * Build a JPEG carrying an EXIF APP1 segment with the given Orientation.
      * GD cannot write EXIF, so the segment is spliced in after the SOI marker.

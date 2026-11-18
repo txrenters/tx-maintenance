@@ -36,6 +36,7 @@ const form = useForm({
     name_on_check: "",
     twilio_number: "",
     email: "",
+    cc_emails: "",
     phone: "",
     address: "",
 });
@@ -77,6 +78,7 @@ const editForm = useForm({
     name_on_check: "",
     vendor_type: "",
     email: "",
+    cc_emails: "",
     phone: "",
     address: "",
     zones: [],
@@ -88,6 +90,7 @@ const setEditForm = (vendor) => {
     editForm.name_on_check = vendor.name_on_check;
     editForm.twilio_number = vendor.twilio_number;
     editForm.email = vendor.email;
+    editForm.cc_emails = (vendor.cc_emails || []).join(", ");
     editForm.vendor_type = vendor.vendor_type;
     editForm.phone = vendor.phone;
     editForm.address = vendor.address;
@@ -272,7 +275,7 @@ const handleImportVendor = () => {
     </Card>
 
     <Dialog v-model:open="isCreateDialogOpen">
-        <DialogContent class="sm:max-w-[525px]">
+        <DialogContent class="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>Create {{ title }}</DialogTitle>
                 <DialogDescription>
@@ -338,6 +341,19 @@ const handleImportVendor = () => {
                         }}</Label>
                     </div>
                     <div class="mb-3 w-full">
+                        <Label for="create-cc-emails">Also email (cc)</Label>
+                        <Input
+                            id="create-cc-emails"
+                            type="text"
+                            class="mt-2"
+                            v-model="form.cc_emails"
+                            placeholder="office@example.com, partner@example.com"
+                        />
+                        <Label class="mt-1 text-destructive text-xs">{{
+                            form.errors.cc_emails
+                        }}</Label>
+                    </div>
+                    <div class="mb-3 w-full">
                         <Label for="code">Phone Number</Label>
                         <Input type="text" class="mt-2" v-model="form.phone" />
                         <Label class="mt-1 text-destructive text-xs">{{
@@ -377,7 +393,7 @@ const handleImportVendor = () => {
     </Dialog>
 
     <Dialog v-model:open="isDialogOpen">
-        <DialogContent class="sm:max-w-[525px]">
+        <DialogContent class="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>Edit {{ title }}</DialogTitle>
                 <DialogDescription>
@@ -485,6 +501,23 @@ const handleImportVendor = () => {
                         />
                         <Label class="mt-1 text-destructive text-xs">{{
                             editForm.errors.email
+                        }}</Label>
+                    </div>
+                    <div class="mb-3 w-full">
+                        <Label for="edit-cc-emails">Also email (cc)</Label>
+                        <Input
+                            id="edit-cc-emails"
+                            type="text"
+                            class="mt-2"
+                            v-model="editForm.cc_emails"
+                            placeholder="office@example.com, partner@example.com"
+                        />
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Copied on every email we send this vendor. Separate
+                            addresses with commas.
+                        </p>
+                        <Label class="mt-1 text-destructive text-xs">{{
+                            editForm.errors.cc_emails
                         }}</Label>
                     </div>
                     <div class="mb-3 w-full">

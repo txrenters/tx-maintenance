@@ -16,6 +16,7 @@ use App\Http\Controllers\ClientContactController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationLogsController;
 use App\Http\Controllers\ConversationMediaController;
+use App\Http\Controllers\ConversationPdfController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FallbackVendorController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\JobberAutomationSettingsController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberJobNoteController;
+use App\Http\Controllers\JobberMessagesPdfController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
@@ -220,6 +222,7 @@ Route::middleware([
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
     Route::get('/inspections/text/messages', [InspectionController::class, 'messages'])->name('jobber.messages');
+    Route::post('/inspections/{job}/messages/pdf', JobberMessagesPdfController::class)->name('jobber.messages.pdf');
 
     // Vendor assignment and documentation on Jobber jobs (non-TexasRenters
     // client properties). These jobs never become work orders, so they need
@@ -272,6 +275,7 @@ Route::middleware([
     Route::get('/work_orders/{workOrder}/conversation/vendors_owner', [ConversationController::class, 'get_vendor_owner_conversation'])->name('work_order.vendor_owner_conversation');
     Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
     Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
+    Route::post('/work_orders/{workOrder}/conversation/pdf', ConversationPdfController::class)->name('work_order.conversation.pdf');
     Route::post('/notification/messages', [ConversationController::class, 'get_conversation'])->name('work_order.notification_messages');
     Route::get('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'show'])->name('work_order.automation.show');
     Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
@@ -318,8 +322,10 @@ Route::middleware([
     Route::post('/attachments/multiple', [AttachmentsController::class, 'multiple_store'])->name('api.attachments.multiple_store');
 
     Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
+    Route::post('/attachments/{attachment}/rotate', [AttachmentsController::class, 'rotate'])->name('api.attachments.rotate');
 
     Route::get('/work-order-documents/{workOrderDocument}/download', [AttachmentsController::class, 'downloadDocument'])->name('api.work_order_documents.download');
+    Route::post('/work-order-documents/{workOrderDocument}/rotate', [AttachmentsController::class, 'rotateDocument'])->name('api.work_order_documents.rotate');
 
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
     Route::post('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'store'])->name('invoices.posted.store');
@@ -529,3 +535,6 @@ Route::fallback(function () {
         ->toResponse(request())
         ->setStatusCode(404);
 });
+
+// Staff sign-in through the TR Staff Portal (routes are off unless PORTAL_ENABLED; see config/portal.php).
+require __DIR__.'/portal.php';

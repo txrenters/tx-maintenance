@@ -84,6 +84,8 @@ services:
   reverb:
     image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
     restart: unless-stopped
+    # init: see the scheduler service — PHP as PID 1 never reaps its orphans.
+    init: true
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     env_file: .env.docker
     extra_hosts:
@@ -131,6 +133,8 @@ services:
     image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
     profiles: [queue]
     restart: unless-stopped
+    # init: see the scheduler service — PHP as PID 1 never reaps its orphans.
+    init: true
     # Same limits as Azure's worker (startup.sh). ImportJobberDataJob runs up
     # to 700s, so the grace period must exceed --timeout or a deploy kills it
     # mid-flight. DB_QUEUE_RETRY_AFTER must exceed it too (env.docker.example).
@@ -159,6 +163,11 @@ services:
     image: ${APP_SLUG:-txmaint}/app:${APP_VERSION:-latest}
     profiles: [scheduler]
     restart: unless-stopped
+    # A real init as PID 1: PHP never reaps the orphaned background shells
+    # schedule:work and queue:work leave behind, so without this every run
+    # left a zombie, the container hit its 8181-pid cgroup limit after ~55h
+    # and every scheduled fork then failed silently (2026-10-31 -> 11-06).
+    init: true
     command: php artisan schedule:work
     env_file: .env.docker
     extra_hosts:

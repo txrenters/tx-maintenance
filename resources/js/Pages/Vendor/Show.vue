@@ -96,7 +96,7 @@ const fmtMoney = (v) =>
             </CardHeader>
             <CardContent v-if="detailsOpen" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div v-for="item in [
-                    ['Email', vendor.email], ['Phone', vendor.phone], ['Company', vendor.company],
+                    ['Email', vendor.email], ['Also emailed', (vendor.cc_emails || []).join(', ')], ['Phone', vendor.phone], ['Company', vendor.company],
                     ['Address', vendor.address], ['Type', vendor.vendor_type], ['Name on check', vendor.name_on_check],
                     ['Twilio', vendor.twilio_number], ['PropertyWare ID', vendor.propertyware_id],
                 ]" :key="item[0]" class="flex flex-col gap-1">

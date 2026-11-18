@@ -409,6 +409,30 @@ parameters:
 			path: app/Console/Commands/UpdateWorkOrderStatus.php
 
 		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/WorkOrderApprovalHistoryCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),mixed\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Console/Commands/WorkOrderApprovalHistoryCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Spatie\\Activitylog\\Models\\Activity\>\:\:flatMap\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Console/Commands/WorkOrderApprovalHistoryCommand.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/WorkOrderApprovalHistoryCommand.php
+
+		-
 			message: '#^Right side of && is always true\.$#'
 			identifier: booleanAnd.rightAlwaysTrue
 			count: 1
@@ -3031,6 +3055,54 @@ parameters:
 			path: app/Services/ConversationParticipants.php
 
 		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_region\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Parameter \#1 \$media of method App\\Services\\ConversationPdf\:\:embeddedImage\(\) expects App\\Models\\ConversationMedia, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>postal_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>state_region" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ConversationPdf.php
+
+		-
 			message: '#^Method App\\Services\\CourtesyCloserService\:\:threadContext\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Support\\Collection\<int, stdClass\>\.$#'
 			identifier: return.type
 			count: 1
@@ -3281,6 +3353,90 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 2
 			path: app/Services/JobberJobService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$home_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$mobile_phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$street\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Method App\\Services\\JobberMessagesPdf\:\:participantsByPhone\(\) should return Illuminate\\Support\\Collection\<string, array\{name\: string, role\: string\}\> but returns Illuminate\\Support\\Collection\<string, array\{name\: string, role\: mixed\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{outbound\: bool, from\: string, to\: string, sent_at\: string, body\: string, failed\: string\|null, images\: array\<int, string\>, files\: array\<int, string\>\}, Closure\(App\\Models\\JobberTextMessage\)\: array\{outbound\: bool, from\: string, to\: string, sent_at\: string, body\: string, failed\: string\|null, images\: array\<int, string\>, files\: array\<int, string\>\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>postal_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>province" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/JobberMessagesPdf.php
 
 		-
 			message: '#^Method App\\Services\\JobberTechnicianResolver\:\:assignedVisits\(\) never returns Illuminate\\Support\\Collection\<int, App\\Models\\JobberVisit\> so it can be removed from the return type\.$#'

@@ -1,21 +1,42 @@
 <script setup>
 import { computed, onBeforeUnmount, watch } from "vue";
-import { ChevronLeft, ChevronRight, Download } from "lucide-vue-next";
+import {
+    ChevronLeft,
+    ChevronRight,
+    Download,
+    Loader2,
+    RotateCcw,
+    RotateCw,
+} from "lucide-vue-next";
 
 /**
  * Full-size photo viewer that steps through a list: arrow buttons, arrow keys,
  * a counter, and a one-click Download that saves under the photo's title.
  * The caller owns the list and the index; a `footer` slot takes any action
  * that belongs to the photo on screen (the Attachments tab puts Delete there).
+ *
+ * Rotation is the caller's too: with `rotatable` the header gets rotate-left /
+ * rotate-right buttons that only emit `rotate`; the caller saves the turn and
+ * hands back the new file. `rotationPreview` (degrees) turns the photo on
+ * screen meanwhile and `rotating` disables the buttons.
  */
 const props = defineProps({
     open: Boolean,
     // [{ id, url, name, downloadName }]
     images: { type: Array, default: () => [] },
     index: { type: Number, default: 0 },
+    rotatable: Boolean,
+    rotating: Boolean,
+    rotationPreview: { type: Number, default: 0 },
 });
 
-const emit = defineEmits(["update:open", "update:index"]);
+const emit = defineEmits(["update:open", "update:index", "rotate"]);
+
+const previewStyle = computed(() =>
+    props.rotationPreview
+        ? { transform: `rotate(${props.rotationPreview}deg)` }
+        : null
+);
 
 const count = computed(() => props.images.length);
 const current = computed(() => props.images[props.index] || null);
@@ -98,6 +119,39 @@ watch(
                             <Download class="w-4 h-4 mr-2" /> Download
                         </a>
                     </Button>
+                    <template v-if="rotatable && current">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            :disabled="rotating"
+                            title="Rotate left"
+                            aria-label="Rotate left"
+                            data-testid="gallery-rotate-left"
+                            @click="emit('rotate', 'counterclockwise')"
+                        >
+                            <RotateCcw class="w-4 h-4" />
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            :disabled="rotating"
+                            title="Rotate right"
+                            aria-label="Rotate right"
+                            data-testid="gallery-rotate-right"
+                            @click="emit('rotate', 'clockwise')"
+                        >
+                            <RotateCw class="w-4 h-4" />
+                        </Button>
+                        <span
+                            v-if="rotating"
+                            class="flex items-center gap-1 text-sm text-muted-foreground"
+                            data-testid="gallery-rotating"
+                        >
+                            <Loader2 class="w-4 h-4 animate-spin" /> Saving
+                        </span>
+                    </template>
                     <span
                         v-if="count > 1"
                         class="text-sm text-muted-foreground tabular-nums"
@@ -113,7 +167,8 @@ watch(
                     v-if="current"
                     :src="current.url"
                     :alt="current.name"
-                    class="max-w-full max-h-full object-contain"
+                    class="max-w-full max-h-full object-contain transition-transform duration-200"
+                    :style="previewStyle"
                     data-testid="gallery-image"
                 />
 

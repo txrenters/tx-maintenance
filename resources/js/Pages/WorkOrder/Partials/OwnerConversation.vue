@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, computed, nextTick } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { DateTime } from "luxon";
@@ -20,11 +20,12 @@ import {
 } from "@/Components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
+import DownloadConversationPdfButton from "@/Components/WorkOrder/DownloadConversationPdfButton.vue";
 import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
 import PortalLinkButton from "@/Components/WorkOrder/PortalLinkButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
-import { buildParticipants } from "@/utils/conversation";
+import { buildParticipants, phoneKey } from "@/utils/conversation";
 import { useThreadScroll } from "@/composables/useThreadScroll";
 
 const props = defineProps({
@@ -71,22 +72,57 @@ const participants = computed(() =>
     ])
 );
 
+/**
+ * Reply on one of the owner's bubbles: the To box takes that bubble's number
+ * exactly as it texted in (an owner's second phone, say) and the owner it
+ * belongs to is selected.
+ */
+const replyToBubble = ({ number }) => {
+    const match = (props.workOrderOwners ?? []).find(
+        (owner) => phoneKey(owner.phone) && phoneKey(owner.phone) === phoneKey(number)
+    );
+
+    owner_phone_number.value = number;
+
+    if (match) {
+        selectedOwner.value = String(match.id);
+    }
+
+    nextTick(() => composer.value?.focus());
+};
+
 watch(selectedOwner, (newOwner) => {
     if (newOwner) {
         const foundOwner = props.workOrderOwners.find(
             (owner) => owner.id == newOwner
         );
+
+        // A number picked with Reply already belongs to this owner; keep it
+        // as typed rather than swapping in the record's formatting.
+        if (foundOwner && phoneKey(foundOwner.phone) === phoneKey(owner_phone_number.value)) {
+            return;
+        }
+
         owner_phone_number.value = foundOwner ? foundOwner.phone : "";
     }
 });
 
-// Preselect the first owner on the work order.
+// Preselect the first owner on the work order. An owner who is not on this
+// list belongs to another work order, so their number must not stay in the To
+// box: that sent a WO#44511 text to the owner of WO#44624 (2026-11-05).
 watch(
     () => props.workOrderOwners,
     (owners) => {
-        if (!selectedOwner.value && owners?.length) {
-            selectedOwner.value = String(owners[0].id);
+        const isListed = owners?.some(
+            (owner) => String(owner.id) === selectedOwner.value
+        );
+
+        if (isListed || (!selectedOwner.value && !owners?.length)) {
+            return;
         }
+
+        owner_phone_number.value = "";
+        selectedOwner.value = owners?.length ? String(owners[0].id) : "";
     },
     { immediate: true }
 );
@@ -309,6 +345,13 @@ watch(
                         :work-order-id="workOrder.id"
                         audience="owner"
                     />
+                    <DownloadConversationPdfButton
+                        :messages="ownerConversation"
+                        title="Owner ↔ Coordinator"
+                        :work-order="workOrder"
+                        :our-number="woc_phone_number"
+                        :participants="participants"
+                    />
                     <AutomationToggle
                         v-if="workOrder?.id"
                         :work-order-id="workOrder.id"
@@ -397,6 +440,8 @@ watch(
                     :messages="ownerConversation"
                     :sender="woc_phone_number"
                     :participants="participants"
+                    replyable
+                    @reply="replyToBubble"
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>
