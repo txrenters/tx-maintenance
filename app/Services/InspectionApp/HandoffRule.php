@@ -24,6 +24,9 @@ use Illuminate\Support\Str;
  * The skip list (handoff_skip_vendor_ids) is for outside companies staff tag
  * THMP onto only so the Jobber job gets created — Jimmie Gendke SFA by
  * default; the work is theirs, so it must not reach our technicians' queue.
+ *
+ * Whether a qualifying work order may be *sent yet* is ApprovalGate's
+ * question, not this one's.
  */
 class HandoffRule
 {

@@ -43,9 +43,9 @@ on every assignment:
 
 The confidence bar is `services.inspection_app.handoff_ai_confidence`, default
 80. `services.inspection_app.handoff_ai_requires_confirmation`, default false,
-turns rule 3a into a held state with a confirm button for the office, should
-it ever want a person back in the loop; it is off because the office asked
-for the send to be automatic.
+turns rule 3a into a held state: the reading shows on the work order, and
+entering the approval in PropertyWare sends it through rule 2. It is off
+because the office asked for the send to be automatic.
 
 The estimate is the work order's `cost_estimate`. When that is empty, the
 in-house vendor's pivot `cost_estimate` is used. When both are empty the work
@@ -142,11 +142,12 @@ reading is never repeated for unchanged text.
 
 No queue to work through; that is the point. Two things instead:
 
-- **Sent by AI reading.** A filter on the existing hand-off outbox view
-  listing every work order sent under rule 3a: number, property, estimate,
-  the AI's summary, each problem with its decision and the owner's quoted
-  words, and when it went. The office looks here after the fact, and a wrong
-  one can be traced to exactly what the AI read.
+- **Sent by AI reading.** `php artisan inspection-app:handoffs
+  --rule=owner_approved_in_messages` lists every work order sent under rule
+  3a: number, status, estimate, the AI's confidence and summary, and when it
+  went; the work order's Recommendation tab carries the same line with the
+  reading. The office looks here after the fact, and a wrong one can be
+  traced to exactly what the AI read.
 - **Held.** On the work order page, why a work order has not gone: "Waiting
   for owner approval ($450 estimate, no approval recorded)" or "AI read 6
   owner messages and found no approval". A coordinator entering the approval
@@ -204,6 +205,16 @@ follows. No new permission, no schema change beyond the notes text.
 - No splitting of a work order into approved and declined visits. The whole
   work order goes, with the reading attached.
 - No change to the retry, idempotency or signing already in the hand-off.
+
+## Before go-live
+
+`php artisan inspection-app:evaluate-approval-reader --since=2026-01-01 --limit=50`
+reads closed work orders of our crews over the threshold and compares the
+AI's answer with the approval on record. It stores nothing and sends nothing.
+Run it on the VPS against production data until the "would have sent without
+a recorded approval" count is understood, then set
+`INSPECTION_APP_HANDOFF_SINCE` to the go-live date so nothing older is
+backfilled, and switch the hand-off on.
 
 ## Testing
 

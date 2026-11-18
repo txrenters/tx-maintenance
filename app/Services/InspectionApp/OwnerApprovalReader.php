@@ -9,6 +9,7 @@ use App\Models\OwnerEmailNotification;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\AiSettings;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -206,7 +207,7 @@ class OwnerApprovalReader
 
         return $this->validate(match (true) {
             is_array($response) => $response,
-            $response instanceof \Illuminate\Contracts\Support\Arrayable => $response->toArray(),
+            $response instanceof Arrayable => $response->toArray(),
             default => (array) $response,
         });
     }
