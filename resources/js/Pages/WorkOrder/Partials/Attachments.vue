@@ -17,6 +17,7 @@ import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
 import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
 import { groupByTurnoverArea } from "@/utils/turnoverAreas";
+import { rejectionReason, uploadInBatches } from "@/utils/uploadBatches";
 
 const { toast } = useToast();
 
@@ -328,37 +329,90 @@ const handleFetchAttachment = () => {
     emit("fetch-attachments");
 };
 
-const handleFormSubmit = () => {
+// Set while an upload is in flight: { done, total, percent }, then
+// { ..., complete: true } for a moment after the last batch lands.
+const uploadProgress = ref(null);
+const submitting = ref(false);
+
+// Staff pick the whole set and press Submit once; the files go up in small
+// requests so the server never sees more than it can take. Each batch that
+// lands is saved; a failure keeps the unsent files in the dialog for a retry.
+const handleFormSubmit = async () => {
     if (!attachmentForm.title) {
         toast({
             variant: "destructive",
-            title: "Uh oh! Something went wrong.",
-            description:
-                "There was a problem with your request. Please try again!",
+            title: "Title is required",
+            description: "Enter a short description for these files first.",
         });
         return;
     }
-    attachmentForm.post(route("api.attachments.multiple_store"), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            toast({
-                title: "Success",
-                description: "Attachments has been saved successfully!",
-            });
-            openAttachmentModal.value = false;
-            attachmentForm.reset();
-            handleFetchAttachment();
-        },
-        onError: () => {
-            toast({
-                variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description:
-                    "There was a problem with your request. Please try again!",
-            });
+    if (attachmentForm.files.length === 0 || submitting.value) {
+        return;
+    }
+    submitting.value = true;
+
+    const entries = [...attachmentForm.files];
+    const files = entries.map((entry) => entry.file);
+    const entryOf = new Map(entries.map((entry) => [entry.file, entry]));
+    const fields = {
+        title: attachmentForm.title,
+        type: attachmentForm.type,
+        owner_portal: attachmentForm.owner_portal,
+        tenant_portal: attachmentForm.tenant_portal,
+        work_order_id: attachmentForm.work_order_id,
+    };
+
+    const { uploaded, remaining, error } = await uploadInBatches({
+        url: route("api.attachments.multiple_store"),
+        files,
+        buildData: (batch) => ({
+            ...fields,
+            files: batch.map((file) => entryOf.get(file)),
+        }),
+        onProgress: (progress) => {
+            uploadProgress.value = progress;
         },
     });
+
+    if (uploaded.length > 0) {
+        handleFetchAttachment();
+    }
+
+    if (error) {
+        const sent = new Set(uploaded);
+        attachmentForm.files = entries.filter((entry) => !sent.has(entry.file));
+        previewFiles.value = previewFiles.value.filter(
+            (preview) => !sent.has(preview.file),
+        );
+        uploadProgress.value = null;
+        submitting.value = false;
+        toast({
+            variant: "destructive",
+            title:
+                uploaded.length > 0
+                    ? `${uploaded.length} of ${files.length} files uploaded`
+                    : "Files not uploaded",
+            description:
+                remaining.length > 0
+                    ? `${error} ${remaining.length} file(s) are still in the dialog. Press Submit to try them again.`
+                    : error,
+            duration: 10000,
+        });
+        return;
+    }
+
+    uploadProgress.value = { ...uploadProgress.value, complete: true };
+    toast({
+        title: "Complete",
+        description: `${uploaded.length} file(s) uploaded. PropertyWare sync is processing in the background.`,
+    });
+    setTimeout(() => {
+        openAttachmentModal.value = false;
+        attachmentForm.reset();
+        previewFiles.value = [];
+        uploadProgress.value = null;
+        submitting.value = false;
+    }, 1500);
 };
 
 const previewFiles = ref([]);
@@ -366,20 +420,44 @@ const previewFiles = ref([]);
 function handleFiles(event) {
     const files = event.target.files;
     previewFiles.value = [];
+    attachmentForm.files = [];
 
+    const refused = [];
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
+
+        // Said now, in words, rather than as a server error page later.
+        const reason = rejectionReason(file);
+        if (reason) {
+            refused.push(reason);
+            continue;
+        }
 
         previewFiles.value.push({
             name: file.name,
             type: file.type,
             url: URL.createObjectURL(file),
+            file,
         });
 
         attachmentForm.files.push({
             name: file.name,
             type: file.type,
             file: file,
+        });
+    }
+
+    // One toast for the whole pick: the toaster shows a single message at a
+    // time, so per-file toasts would overwrite each other.
+    if (refused.length > 0) {
+        toast({
+            variant: "destructive",
+            title:
+                refused.length === 1
+                    ? "That file can't be uploaded"
+                    : `${refused.length} files can't be uploaded`,
+            description: refused.join(" "),
+            duration: 10000,
         });
     }
 }
@@ -664,13 +742,36 @@ function handleFiles(event) {
                             accept="image/*, video/*, .3gp, .jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .xls, .xlsx"
                             @change="handleFiles"
                         />
-                        <Progress
-                            v-if="attachmentForm.progress"
-                            :value="attachmentForm.progress.percentage"
-                            :model-value="attachmentForm.progress.percentage"
+                        <!-- Fills a step per batch, then reads Complete. Big
+                             sets go up in several requests; without this the
+                             button just spins and the upload looks stuck. -->
+                        <div
+                            v-if="uploadProgress"
+                            class="mt-2 space-y-1"
+                            role="status"
+                            aria-live="polite"
                         >
-                            {{ attachmentForm.progress.percentage }}%
-                        </Progress>
+                            <div
+                                class="flex items-center justify-between text-sm font-medium"
+                                :class="uploadProgress.complete ? 'text-emerald-600' : ''"
+                            >
+                                <span>
+                                    {{
+                                        uploadProgress.complete
+                                            ? "Complete"
+                                            : `Uploading ${uploadProgress.done} of ${uploadProgress.total}`
+                                    }}
+                                </span>
+                                <span class="tabular-nums">{{ uploadProgress.percent }}%</span>
+                            </div>
+                            <Progress :model-value="uploadProgress.percent" />
+                            <p
+                                v-if="!uploadProgress.complete"
+                                class="text-xs text-muted-foreground"
+                            >
+                                Files are sent a few at a time and each group is saved as it lands.
+                            </p>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <Label>Choose Option</Label>
@@ -757,6 +858,7 @@ function handleFiles(event) {
                 </div>
                 <DialogFooter class="p-6 pt-0">
                     <Button
+                        :disabled="submitting"
                         @click="openAttachmentModal = false"
                         variant="destructive"
                         >Cancel</Button
@@ -764,11 +866,11 @@ function handleFiles(event) {
 
                     <Button
                         type="submit"
-                        :disabled="attachmentForm.processing"
+                        :disabled="submitting"
                         @click.prevent="handleFormSubmit"
                     >
                         <Loader2
-                            v-if="attachmentForm.processing"
+                            v-if="submitting"
                             class="w-4 h-4 animate-spin"
                         />
                         Submit

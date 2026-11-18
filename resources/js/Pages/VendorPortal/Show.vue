@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import BrandHeader from "@/Components/PortalBrandHeader.vue";
 import BrandFooter from "@/Components/PortalBrandFooter.vue";
 import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
+import { rejectionReason, uploadInBatches } from "@/utils/uploadBatches.js";
 import {
     Loader2,
     Camera,
@@ -51,6 +52,11 @@ const props = defineProps({
 const page = usePage();
 const { toast } = useToast();
 
+// Set while a photo upload is in flight: { done, total, percent }, then
+// { ..., complete: true } for a moment after the last batch lands. Declared
+// up here because the flash watcher below reads it on its first run.
+const uploadProgress = ref(null);
+
 // A vendor's iPhone tapback ("Liked \"…\"") arrives as a text quoting the
 // entire original message; render it as a compact reaction chip instead.
 // Only the vendor's own messages can be tapbacks.
@@ -95,7 +101,9 @@ watch(
     () => page.props.flash,
     (f) => {
         if (!f) return;
-        if (f.success)
+        // A batched photo upload lands one flash per batch; it reports once
+        // itself when the whole set is in.
+        if (f.success && !uploadProgress.value)
             toast({ title: "Success", description: f.success, duration: 5000 });
         if (f.warning)
             toast({ title: "Heads up", description: f.warning, duration: 5000 });
@@ -229,11 +237,18 @@ const isImageFile = (file) =>
 
 const onPickFiles = (e) => {
     const picked = Array.from(e.target.files || []);
+    const refused = [];
     picked.forEach((file) => {
         const isDuplicate = selectedFiles.value.some(
             (existing) => existing.name === file.name && existing.size === file.size,
         );
         if (isDuplicate) {
+            return;
+        }
+        // Said now, in words, rather than as a server error page later.
+        const reason = rejectionReason(file);
+        if (reason) {
+            refused.push(reason);
             return;
         }
         selectedFiles.value.push(file);
@@ -250,6 +265,20 @@ const onPickFiles = (e) => {
     });
     // Reset so re-picking the same file still fires @change.
     e.target.value = "";
+
+    // One toast for the whole pick: the toaster shows a single message at a
+    // time, so per-file toasts would overwrite each other.
+    if (refused.length > 0) {
+        toast({
+            variant: "destructive",
+            title:
+                refused.length === 1
+                    ? "That file can't be uploaded"
+                    : `${refused.length} files can't be uploaded`,
+            description: refused.join(" "),
+            duration: 10000,
+        });
+    }
 };
 
 const removeSelectedFile = (index) => {
@@ -260,31 +289,78 @@ const removeSelectedFile = (index) => {
     selectedFiles.value.splice(index, 1);
 };
 
-const uploadPhotos = () => {
-    if (selectedFiles.value.length === 0) return;
+// The vendor picks the whole set and presses Upload once; the page sends it
+// in small requests so the server never sees more than it can take. Each
+// batch that lands is saved; a failure leaves the unsent photos in the picker.
+const uploadPhotos = async () => {
+    if (selectedFiles.value.length === 0 || uploading.value) return;
     uploading.value = true;
-    const data = new FormData();
-    data.append("title", photoTitle.value.trim());
-    data.append("type", photoType.value);
-    selectedFiles.value.forEach((file, i) => {
-        data.append("files[]", file);
-        if (showAreaPicker.value) {
-            data.append("areas[]", selectedPreviews.value[i]?.area || "");
-        }
+
+    const files = [...selectedFiles.value];
+    const areaOf = new Map(
+        files.map((file, i) => [file, selectedPreviews.value[i]?.area || ""]),
+    );
+    const title = photoTitle.value.trim();
+    const type = photoType.value;
+    const withAreas = showAreaPicker.value;
+
+    const { uploaded, remaining, error } = await uploadInBatches({
+        url: route("vendor.portal.attachments", props.token),
+        files,
+        buildData: (batch) => {
+            const data = new FormData();
+            data.append("title", title);
+            data.append("type", type);
+            batch.forEach((file) => {
+                data.append("files[]", file);
+                if (withAreas) {
+                    data.append("areas[]", areaOf.get(file));
+                }
+            });
+            return data;
+        },
+        onProgress: (progress) => {
+            uploadProgress.value = progress;
+        },
     });
 
-    router.post(route("vendor.portal.attachments", props.token), data, {
-        preserveScroll: true,
-        forceFormData: true,
-        onSuccess: () => {
-            selectedFiles.value = [];
-            selectedPreviews.value = [];
-            photoTitle.value = "";
-            photoArea.value = "";
-            if (photoInput.value) photoInput.value.value = "";
-        },
-        onFinish: () => (uploading.value = false),
+    // Drop what was sent; keep the rest (with its area) for a retry.
+    uploaded.forEach((file) => {
+        const index = selectedFiles.value.indexOf(file);
+        if (index !== -1) removeSelectedFile(index);
     });
+
+    if (error) {
+        uploadProgress.value = null;
+        uploading.value = false;
+        toast({
+            variant: "destructive",
+            title:
+                uploaded.length > 0
+                    ? `${uploaded.length} of ${files.length} photos uploaded`
+                    : "Photos not uploaded",
+            description:
+                remaining.length > 0
+                    ? `${error} ${remaining.length} photo(s) are still in the picker. Press Upload to try them again.`
+                    : error,
+            duration: 10000,
+        });
+        return;
+    }
+
+    photoTitle.value = "";
+    photoArea.value = "";
+    if (photoInput.value) photoInput.value.value = "";
+    uploadProgress.value = { ...uploadProgress.value, complete: true };
+    toast({
+        title: "Complete",
+        description: `${uploaded.length} photo(s) uploaded. They are syncing in the background.`,
+        duration: 5000,
+    });
+    setTimeout(() => {
+        uploadProgress.value = null;
+        uploading.value = false;
+    }, 2500);
 };
 
 // --- Invoice upload ---
@@ -1143,6 +1219,54 @@ const confirmCompleteTask = () => {
                                         </option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <!-- Fills a step per batch, then reads Complete.
+                                 Big photo sets go up in several requests;
+                                 without this the button just spins for a
+                                 minute and the vendor assumes it is stuck. -->
+                            <div
+                                v-if="uploadProgress"
+                                class="rounded-lg border p-3 space-y-2"
+                                :class="
+                                    uploadProgress.complete
+                                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40'
+                                        : 'border-primary/40 bg-muted/40'
+                                "
+                                role="status"
+                                aria-live="polite"
+                            >
+                                <div class="flex items-center justify-between text-sm font-medium">
+                                    <span class="flex items-center gap-2">
+                                        <CheckCircle2
+                                            v-if="uploadProgress.complete"
+                                            class="w-4 h-4 text-emerald-600"
+                                        />
+                                        <Loader2
+                                            v-else
+                                            class="w-4 h-4 animate-spin"
+                                        />
+                                        {{
+                                            uploadProgress.complete
+                                                ? "Complete"
+                                                : `Uploading ${uploadProgress.done} of ${uploadProgress.total}`
+                                        }}
+                                    </span>
+                                    <span class="tabular-nums">{{ uploadProgress.percent }}%</span>
+                                </div>
+                                <div class="h-2 w-full overflow-hidden rounded-full bg-primary/20">
+                                    <div
+                                        class="h-full rounded-full transition-all duration-500"
+                                        :class="uploadProgress.complete ? 'bg-emerald-500' : 'bg-primary'"
+                                        :style="{ width: `${uploadProgress.percent}%` }"
+                                    />
+                                </div>
+                                <p
+                                    v-if="!uploadProgress.complete"
+                                    class="text-xs text-muted-foreground"
+                                >
+                                    Keep this page open. Photos are sent a few at a time and each group is saved as it lands.
+                                </p>
                             </div>
 
                             <button
