@@ -223,7 +223,7 @@ class HandoffService
             return;
         }
 
-        $payload = $this->payload->build($workOrder);
+        $payload = $this->payload->build($workOrder, $row);
         $row->forceFill(['attempts' => $row->attempts + 1, 'last_attempt_at' => now()])->save();
         $requestId = sprintf('txm-wo-%s-%d', $workOrder->work_order_no ?? $workOrder->id, $row->attempts);
 
@@ -303,7 +303,7 @@ class HandoffService
             if ($row->status === InspectionAppHandoff::STATUS_SENT && $row->payload_hash !== null) {
                 $workOrder = WorkOrder::withoutGlobalScopes()->find($row->work_order_id);
 
-                if ($workOrder && $this->payload->hash($this->payload->build($workOrder)) === $row->payload_hash) {
+                if ($workOrder && $this->payload->hash($this->payload->build($workOrder, $row)) === $row->payload_hash) {
                     if (! $dryRun) {
                         $row->forceFill(['last_attempt_at' => now()])->save();
                     }

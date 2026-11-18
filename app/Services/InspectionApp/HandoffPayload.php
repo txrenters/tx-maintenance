@@ -3,10 +3,12 @@
 namespace App\Services\InspectionApp;
 
 use App\Models\Building;
+use App\Models\InspectionAppHandoff;
 use App\Models\OutsideCustomer;
 use App\Models\Tenants;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderNotes;
 use App\Services\PhoneFormatter;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -27,12 +29,13 @@ class HandoffPayload
 {
     public const SOURCE_SYSTEM = 'tx-maintenance';
 
-    public function __construct(private HandoffRule $rule) {}
+    public function __construct(private HandoffRule $rule, private ApprovalGate $gate) {}
 
     /**
+     * @param  InspectionAppHandoff|null  $row  The outbox row, for the rule that let it through and the AI reading behind it.
      * @return array<string, mixed>
      */
-    public function build(WorkOrder $workOrder): array
+    public function build(WorkOrder $workOrder, ?InspectionAppHandoff $row = null): array
     {
         $workOrder->loadMissing(['vendors', 'building', 'tenants', 'outsideCustomer', 'service_status']);
 
@@ -50,6 +53,7 @@ class HandoffPayload
                 'local_status' => $this->stringOrNull($workOrder->local_status),
                 'priority' => $this->stringOrNull($workOrder->priority),
                 'is_emergency' => $workOrder->is_emergency === null ? null : (bool) $workOrder->is_emergency,
+                'cost_estimate' => $this->gate->estimate($workOrder),
                 'category' => $this->stringOrNull($workOrder->category),
                 'type' => $this->stringOrNull($workOrder->type),
                 'description' => $workOrder->description,
@@ -80,6 +84,58 @@ class HandoffPayload
                 'name' => $this->stringOrNull($vendor->name),
                 'in_house' => $this->rule->isInHouse($vendor),
             ])->values()->all(),
+            'notes' => $this->notes($workOrder),
+            'approval' => $this->approval($workOrder, $row),
+        ];
+    }
+
+    /**
+     * The Notes tab, oldest first. Private notes go too, flagged: the crew
+     * is in-house, and the office asked for all the information.
+     *
+     * @return list<array{subject: ?string, body: string, author: ?string, date: ?string, is_private: bool}>
+     */
+    private function notes(WorkOrder $workOrder): array
+    {
+        return WorkOrderNotes::query()
+            ->with('user')
+            ->where('work_order_id', $workOrder->id)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (WorkOrderNotes $note): ?array => trim((string) $note->body) === '' ? null : [
+                'subject' => $this->stringOrNull($note->subject),
+                'body' => trim((string) $note->body),
+                'author' => $this->stringOrNull($note->user?->name),
+                'date' => $this->iso($note->date ?: $note->created_at),
+                'is_private' => (bool) $note->is_private,
+            ])
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Which rule let it through and what stood behind it: the recorded
+     * approver, or the AI's reading with the owner's quoted words.
+     *
+     * @return array<string, mixed>
+     */
+    private function approval(WorkOrder $workOrder, ?InspectionAppHandoff $row): array
+    {
+        $reading = $row?->aiInsight;
+        $summary = $reading === null ? null : OwnerApprovalReader::summarize($reading);
+        $recorded = $this->gate->approvalRecorded($workOrder);
+
+        return [
+            'rule' => $row?->rule,
+            'threshold' => $this->gate->threshold(),
+            'estimate' => $this->gate->estimate($workOrder),
+            'recorded_by' => $recorded ? $this->stringOrNull($workOrder->approved_by) : null,
+            'recorded_at' => $recorded ? $this->iso($workOrder->approved_date) : null,
+            'ai_confidence' => $summary['confidence'] ?? null,
+            'ai_read_at' => $summary['read_at'] ?? null,
+            'summary' => $summary['summary'] ?? null,
+            'problems' => $summary['problems'] ?? [],
         ];
     }
 

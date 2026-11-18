@@ -12,8 +12,11 @@ use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderNotes;
 use App\Services\InspectionApp\ApprovalGate;
+use App\Services\InspectionApp\HandoffPayload;
 use App\Services\InspectionApp\HandoffService;
+use Illuminate\Http\Client\Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -495,5 +498,53 @@ class InspectionAppHandoffApprovalTest extends TestCase
         Queue::assertNotPushed(ReadOwnerApprovalForHandoff::class);
         $this->assertSame(0, $this->service()->sweep()['read']);
         $this->assertSame('held', $row->fresh()->status);
+    }
+
+    // ---- The envelope ------------------------------------------------------
+
+    public function test_the_envelope_carries_the_estimate_the_notes_and_the_approval_block(): void
+    {
+        Http::fake(['*' => Http::response(['id' => 'insp_9'], 201)]);
+        $workOrder = $this->workOrder(['cost_estimate' => 450, 'work_order_no' => 43761]);
+        $this->thmpOn($workOrder);
+        WorkOrderNotes::query()->create(['work_order_id' => $workOrder->id, 'subject' => 'Tenant call', 'body' => 'Light out a week', 'date' => '2026-11-09', 'is_private' => false]);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+        $this->approvedReading();
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $this->service()->readAndRelease($row->id);
+
+        $this->service()->push($row->id);
+
+        Http::assertSent(function (Request $request): bool {
+            $body = $request->data();
+
+            // JSON carries 450.0 as 450; the number is what matters.
+            $this->assertEquals(450, $body['work_order']['cost_estimate']);
+            $this->assertSame('Light out a week', $body['notes'][0]['body']);
+            $this->assertSame('Tenant call', $body['notes'][0]['subject']);
+            $this->assertSame('owner_approved_in_messages', $body['approval']['rule']);
+            $this->assertEquals(300, $body['approval']['threshold']);
+            $this->assertSame(92, $body['approval']['ai_confidence']);
+            $this->assertSame('approved', $body['approval']['problems'][0]['decision']);
+            $this->assertStringContainsString('hallway light', $body['approval']['summary']);
+
+            return true;
+        });
+    }
+
+    public function test_the_envelope_names_the_recorded_approver_for_a_recorded_approval(): void
+    {
+        $workOrder = $this->workOrder(['cost_estimate' => 450, 'approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
+        $this->thmpOn($workOrder);
+        $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'owner_approved_recorded']);
+
+        $payload = app(HandoffPayload::class)->build($workOrder->fresh(['vendors']), $row);
+
+        $this->assertSame('owner_approved_recorded', $payload['approval']['rule']);
+        $this->assertSame('J. Owner', $payload['approval']['recorded_by']);
+        $this->assertStringStartsWith('2026-11-10', $payload['approval']['recorded_at']);
+        $this->assertNull($payload['approval']['ai_confidence']);
+        $this->assertSame([], $payload['approval']['problems']);
+        $this->assertSame([], $payload['notes']);
     }
 }
