@@ -40,11 +40,15 @@ class PushWorkOrdersToInspectionApp extends Command
         $result = $service->sweep($dryRun);
 
         $this->info(sprintf(
-            '%d checked, %d %s, %d unchanged.',
+            '%d checked, %d %s, %d unchanged; %d held, %d read by AI, %d %s.',
             $result['checked'],
             $result['queued'],
             $dryRun ? 'would be queued' : 'queued',
             $result['unchanged'],
+            $result['held'],
+            $result['read'],
+            $result['released'],
+            $dryRun ? 'would be released' : 'released',
         ));
 
         return self::SUCCESS;

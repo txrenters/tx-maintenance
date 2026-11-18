@@ -2,14 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\PushWorkOrderToInspectionApp;
 use App\Models\AiInsight;
 use App\Models\InspectionAppHandoff;
+use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\InspectionApp\ApprovalGate;
+use App\Services\InspectionApp\HandoffService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -21,6 +26,27 @@ use Tests\TestCase;
 class InspectionAppHandoffApprovalTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'services.inspection_app.url' => 'https://inspection-api.example.test',
+            'services.inspection_app.token' => 'trk_live_abc123def456.the-secret-half-of-the-key-43-chars-long-xx',
+            'services.inspection_app.handoff' => true,
+            'services.inspection_app.handoff_vendor_ids' => '246120584,5466750978,4329930755',
+            'services.inspection_app.handoff_vendor_names' => 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC',
+            'services.inspection_app.handoff_skip_vendor_ids' => '4802084865',
+        ]);
+
+        ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+    }
+
+    private function service(): HandoffService
+    {
+        return app(HandoffService::class);
+    }
 
     public function test_the_outbox_row_records_the_rule_the_reason_and_the_reading(): void
     {
@@ -176,5 +202,125 @@ class InspectionAppHandoffApprovalTest extends TestCase
         config(['services.inspection_app.handoff_approval_threshold' => 500]);
 
         $this->assertTrue($this->gate()->decide($this->workOrder(['cost_estimate' => 450]))->send);
+    }
+
+    // ---- The gate in the hand-off ------------------------------------------
+
+    public function test_consider_sends_a_cheap_work_order_and_names_the_rule(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 120]);
+        $this->thmpOn($workOrder);
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('under_threshold', $row->rule);
+        $this->assertNull($row->held_reason);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_consider_holds_an_expensive_work_order_with_the_reason_and_pushes_nothing(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->assertSame('held', $row->status);
+        $this->assertNull($row->rule);
+        $this->assertSame('Estimate $450.00 is over $300, and no owner approval is recorded', $row->held_reason);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+    }
+
+    public function test_push_refuses_a_held_row(): void
+    {
+        Http::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'held', 'held_reason' => 'x']);
+
+        $this->service()->push($row->id);
+
+        Http::assertNothingSent();
+        $this->assertSame('held', $row->fresh()->status);
+        $this->assertSame(0, $row->fresh()->attempts);
+    }
+
+    public function test_a_held_row_is_decided_again_when_the_work_order_comes_back_through_consider(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $workOrder->forceFill(['approved_by' => 'J. Owner'])->save();
+        $row = $this->service()->consider($workOrder->id, 'status_sync');
+
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('owner_approved_recorded', $row->rule);
+        $this->assertNull($row->held_reason);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_a_sent_work_order_is_not_pulled_back_by_a_later_change(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 120]);
+        $this->thmpOn($workOrder);
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $row->forceFill(['status' => 'sent', 'sent_at' => now(), 'payload_hash' => 'abc'])->save();
+
+        $workOrder->forceFill(['cost_estimate' => 900])->save();
+        $again = $this->service()->consider($workOrder->id, 'status_sync');
+
+        $this->assertSame('pending', $again->status);
+        $this->assertSame('under_threshold', $again->rule);
+    }
+
+    public function test_the_sweep_releases_a_held_row_once_the_approval_is_on_record(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $workOrder->forceFill(['approved_date' => '2026-11-12'])->save();
+
+        $result = $this->service()->sweep();
+
+        $this->assertSame(1, $result['held']);
+        $this->assertSame(1, $result['released']);
+        $row = InspectionAppHandoff::query()->where('work_order_id', $workOrder->id)->sole();
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('owner_approved_recorded', $row->rule);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_a_work_order_from_before_go_live_is_never_handed_off_the_first_time(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_since' => '2026-12-01']);
+        $old = $this->workOrder(['cost_estimate' => 120, 'created_date' => '2026-11-20']);
+        $new = $this->workOrder(['cost_estimate' => 120, 'created_date' => '2026-12-02']);
+        $this->thmpOn($old);
+        $this->thmpOn($new);
+
+        $this->assertNull($this->service()->consider($old->id, 'vendor_assigned'));
+        $this->assertSame('pending', $this->service()->consider($new->id, 'vendor_assigned')->status);
+        $this->assertTrue($this->service()->startedBeforeGoLive($old));
+        $this->assertFalse($this->service()->startedBeforeGoLive($new));
+    }
+
+    public function test_the_manual_push_by_number_skips_the_filter_and_says_so(): void
+    {
+        Http::fake(['*' => Http::response(['id' => 'insp_1'], 201)]);
+        $workOrder = $this->workOrder(['cost_estimate' => 900]);
+        $this->thmpOn($workOrder);
+
+        $row = $this->service()->pushNow((int) $workOrder->work_order_no);
+
+        $this->assertSame('sent', $row->status);
+        $this->assertSame('manual', $row->rule);
     }
 }

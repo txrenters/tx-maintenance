@@ -71,7 +71,9 @@ class InspectionAppHandoffTest extends TestCase
      */
     private function workOrderWith(array $vendors, array $attributes = []): WorkOrder
     {
-        $workOrder = WorkOrder::factory()->create($attributes);
+        // Under the approval threshold, so these tests keep exercising the
+        // send path; the filter itself is InspectionAppHandoffApprovalTest's.
+        $workOrder = WorkOrder::factory()->create($attributes + ['cost_estimate' => 150]);
 
         foreach ($vendors as $vendor) {
             DB::table('work_order_vendors')->insert([

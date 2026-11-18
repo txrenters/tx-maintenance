@@ -77,7 +77,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
     public function test_picking_thmp_on_the_board_hands_the_work_order_off(): void
     {
         $this->mock(PropertyWareService::class, fn ($mock) => $mock->shouldReceive('changeWorkOrderVendors')->once());
-        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 'PW-1']);
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 'PW-1', 'cost_estimate' => 150]);
 
         $this->actingAs($this->admin())
             ->put(route('work_orders.vendor.change', $workOrder), ['vendor_ids' => [$this->thmp->id]])
@@ -105,6 +105,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
         $this->mock(PropertyWareService::class, fn ($mock) => $mock->shouldNotReceive('changeWorkOrderVendors'));
         $customer = OutsideCustomer::factory()->create();
         $workOrder = WorkOrder::factory()->create([
+            'cost_estimate' => 150,
             'source' => WorkOrder::CRYSTAL_CREEK_SOURCE,
             'outside_customer_id' => $customer->id,
             'building_id' => null,
@@ -122,7 +123,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
 
     public function test_an_imported_work_order_that_arrives_with_thmp_is_handed_off(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 150]);
 
         $job = new ImportWorkOrderJob([]);
         $method = new ReflectionMethod($job, 'processVendors');
@@ -134,7 +135,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
 
     public function test_a_reimport_with_the_same_vendor_does_not_hand_off_again(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 150]);
         $job = new ImportWorkOrderJob([]);
         $method = new ReflectionMethod($job, 'processVendors');
 
@@ -147,7 +148,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
 
     public function test_the_status_sync_hands_off_a_newly_assigned_thmp_but_not_an_existing_one(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 150]);
         $command = app(UpdateWorkOrderStatus::class);
         $method = new ReflectionMethod($command, 'recordVendorAssignment');
 
@@ -161,7 +162,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
 
     public function test_the_full_import_hands_off_a_newly_assigned_thmp(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 150]);
         $command = app(ImportAllWorkOrdersCommand::class);
         $method = new ReflectionMethod($command, 'recordVendorAssignment');
 
@@ -174,7 +175,7 @@ class InspectionAppHandoffTriggersTest extends TestCase
     public function test_with_the_switch_off_no_trigger_writes_anything(): void
     {
         config(['services.inspection_app.handoff' => false]);
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 150]);
 
         $job = new ImportWorkOrderJob([]);
         (new ReflectionMethod($job, 'processVendors'))->invoke($job, ['vendorIDs' => [Vendor::THMP_PROPERTYWARE_ID]], $workOrder->id, now()->toDateTimeString());

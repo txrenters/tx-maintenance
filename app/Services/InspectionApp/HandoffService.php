@@ -6,6 +6,7 @@ use App\Jobs\PushWorkOrderToInspectionApp;
 use App\Models\InspectionAppHandoff;
 use App\Models\WorkOrder;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -34,6 +35,7 @@ class HandoffService
 
     public function __construct(
         private HandoffRule $rule,
+        private ApprovalGate $gate,
         private HandoffPayload $payload,
         private InspectionAppClient $client,
     ) {}
@@ -66,19 +68,74 @@ class HandoffService
             return null;
         }
 
-        if ($row) {
-            $row->forceFill(['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => $reason])->save();
-        } else {
-            $row = InspectionAppHandoff::query()->create([
-                'work_order_id' => $workOrder->id,
-                'status' => InspectionAppHandoff::STATUS_PENDING,
-                'reason' => $reason,
-            ]);
+        if (! $row && $this->startedBeforeGoLive($workOrder)) {
+            return null;
         }
 
-        PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+        // A work order the app has already been told about is updated, never
+        // pulled back through the filter: a later change goes as an update.
+        if ($row && $row->status !== InspectionAppHandoff::STATUS_HELD && $row->rule !== null) {
+            $row->forceFill(['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => $reason])->save();
+            PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+
+            return $row;
+        }
+
+        $row ??= InspectionAppHandoff::query()->create([
+            'work_order_id' => $workOrder->id,
+            'status' => InspectionAppHandoff::STATUS_HELD,
+            'reason' => $reason,
+        ]);
+        $row->forceFill(['reason' => $reason])->save();
+
+        $this->release($row, $this->gate->decide($workOrder));
 
         return $row;
+    }
+
+    /**
+     * Apply a decision to a row: queue it under its rule, or hold it with
+     * the reason. The one place a row moves from held to pending.
+     */
+    public function release(InspectionAppHandoff $row, ApprovalDecision $decision): void
+    {
+        if ($decision->send) {
+            $row->forceFill([
+                'status' => InspectionAppHandoff::STATUS_PENDING,
+                'rule' => $decision->rule,
+                'held_reason' => null,
+            ])->save();
+            PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+
+            return;
+        }
+
+        $row->forceFill([
+            'status' => InspectionAppHandoff::STATUS_HELD,
+            'rule' => null,
+            'held_reason' => $decision->heldReason,
+        ])->save();
+    }
+
+    /**
+     * Go-live without a backfill: a work order created before
+     * handoff_since is never handed off for the first time.
+     */
+    public function startedBeforeGoLive(WorkOrder $workOrder): bool
+    {
+        $since = trim((string) config('services.inspection_app.handoff_since', ''));
+
+        if ($since === '') {
+            return false;
+        }
+
+        $created = $workOrder->created_date ?? $workOrder->created_at;
+
+        if ($created === null) {
+            return false;
+        }
+
+        return Carbon::parse((string) $created)->lt(Carbon::parse($since)->startOfDay());
     }
 
     /**
@@ -91,6 +148,10 @@ class HandoffService
         $row = InspectionAppHandoff::query()->find($handoffId);
 
         if (! $row) {
+            return;
+        }
+
+        if ($row->status === InspectionAppHandoff::STATUS_HELD) {
             return;
         }
 
@@ -216,7 +277,55 @@ class HandoffService
             PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
         }
 
-        return ['checked' => $rows->count(), 'queued' => $queued, 'unchanged' => $unchanged];
+        $held = $this->sweepHeld($dryRun);
+
+        return ['checked' => $rows->count(), 'queued' => $queued, 'unchanged' => $unchanged] + $held;
+    }
+
+    /**
+     * Held rows: decide each again, since an approval may have been entered
+     * in PropertyWare since. The AI reading joins here (readAndRelease).
+     *
+     * @return array{held: int, released: int, read: int}
+     */
+    private function sweepHeld(bool $dryRun): array
+    {
+        $rows = InspectionAppHandoff::query()
+            ->where('status', InspectionAppHandoff::STATUS_HELD)
+            ->orderBy('id')
+            ->get();
+
+        $released = 0;
+
+        foreach ($rows as $row) {
+            $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
+
+            if (! $workOrder || ! $this->rule->qualifies($workOrder) || ! $this->rule->isOpen($workOrder)) {
+                if (! $dryRun) {
+                    $row->forceFill(['status' => InspectionAppHandoff::STATUS_SKIPPED, 'last_error' => 'No longer ours, or closed before it was ever sent.'])->save();
+                }
+
+                continue;
+            }
+
+            $decision = $this->gate->decide($workOrder);
+
+            if ($decision->send) {
+                $released++;
+
+                if (! $dryRun) {
+                    $this->release($row, $decision);
+                }
+
+                continue;
+            }
+
+            if (! $dryRun) {
+                $row->forceFill(['held_reason' => $decision->heldReason])->save();
+            }
+        }
+
+        return ['held' => $rows->count(), 'released' => $released, 'read' => 0];
     }
 
     /**
@@ -234,8 +343,10 @@ class HandoffService
 
         $row = InspectionAppHandoff::query()->firstOrCreate(
             ['work_order_id' => $workOrder->id],
-            ['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => 'manual'],
+            ['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => 'manual', 'rule' => InspectionAppHandoff::RULE_MANUAL],
         );
+        // The office's own lever: no filter, and a held row goes too.
+        $row->forceFill(['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => 'manual', 'rule' => InspectionAppHandoff::RULE_MANUAL, 'held_reason' => null])->save();
 
         $this->push($row->id);
 
