@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\MutesAutomations;
 use Database\Factories\TenantsFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,8 @@ class Tenants extends Model
 {
     /** @use HasFactory<TenantsFactory> */
     use HasFactory;
+
+    use MutesAutomations;
 
     protected $table = 'tenants';
 

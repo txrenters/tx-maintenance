@@ -188,6 +188,16 @@ class WorkOrder extends Model
     }
 
     /**
+     * Whether the Requested By tenant is muted on the Do Not Message tab. For
+     * the automations that only ever text the requester, that means there is
+     * nobody to send to.
+     */
+    public function requesterAutomationsMuted(): bool
+    {
+        return (bool) $this->requested_by?->automationsMuted();
+    }
+
+    /**
      * Mute or resume a channel's automated messages for this work order.
      */
     public function setAutomationPaused(string $channel, bool $paused): void
@@ -840,13 +850,15 @@ class WorkOrder extends Model
      * behind an LLC that holds the 100% stake (often with no phone of its own),
      * so notifications must include them. Ordered primary-first and
      * de-duplicated by normalized phone number, so two owners sharing one line
-     * (e.g. a couple) get a single text.
+     * (e.g. a couple) get a single text. Owners muted on the Do Not Message
+     * tab are left out: every caller is an automated sender.
      *
      * @return Collection<int, Owner>
      */
     public function notifiableOwners(): Collection
     {
         return $this->owners
+            ->reject(fn (Owner $owner): bool => $owner->automationsMuted())
             ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
             ->filter(fn (Owner $owner): bool => $this->normalizedOwnerPhone($owner) !== null)
             ->unique(fn (Owner $owner): string => (string) $this->normalizedOwnerPhone($owner))
@@ -894,12 +906,17 @@ class WorkOrder extends Model
      * - the requester is not on the roster (staff, a technician, nobody):
      *   every tenant on the roster.
      *
+     * A tenant muted on the Do Not Message tab counts as unreachable, so a
+     * muted requester's housemates still hear from us but they never do.
+     *
      * @param  callable(Tenants): bool  $reachable
      * @return Collection<int, Tenants>
      */
     public function tenantIntakeRecipients(callable $reachable): Collection
     {
         $this->loadMissing(['requested_by', 'tenants']);
+
+        $reachable = fn (Tenants $tenant): bool => ! $tenant->automationsMuted() && $reachable($tenant);
 
         $requester = $this->requested_by;
         $roster = $this->tenants;

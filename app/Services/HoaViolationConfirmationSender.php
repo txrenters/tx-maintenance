@@ -96,13 +96,17 @@ class HoaViolationConfirmationSender
     {
         $emails = [];
 
-        $tenantEmail = $workOrder->requested_by?->email;
+        $tenantEmail = $workOrder->requesterAutomationsMuted() ? null : $workOrder->requested_by?->email;
 
         if (filled($tenantEmail) && ! str_ends_with((string) $tenantEmail, '@texasrenter.com')) {
             $emails[] = $tenantEmail;
         }
 
         foreach ($workOrder->owners as $owner) {
+            if ($owner->automationsMuted()) {
+                continue;
+            }
+
             if (filled($owner->email) && ! str_ends_with((string) $owner->email, '@texasrenter.com')) {
                 $emails[] = $owner->email;
             }

@@ -125,7 +125,7 @@ class TenantAppointmentNotificationService
         // still gets one entry addressed to the requester, so the
         // coordinator can see the appointment went out.
         $recipients = $this->recipients($workOrder)
-            ?: [['tenant' => $workOrder->requested_by, 'number' => null]];
+            ?: ($workOrder->requesterAutomationsMuted() ? [] : [['tenant' => $workOrder->requested_by, 'number' => null]]);
 
         foreach ($recipients as $recipient) {
             $message = TenantMessageFormatter::compose(
@@ -200,6 +200,10 @@ class TenantAppointmentNotificationService
             ->unique('id');
 
         foreach ($tenants as $tenant) {
+            if ($tenant->automationsMuted()) {
+                continue;
+            }
+
             $number = $this->toE164($tenant->mobile_phone ?: $tenant->home_phone);
 
             if (blank($number) || isset($numbersSeen[$number])) {

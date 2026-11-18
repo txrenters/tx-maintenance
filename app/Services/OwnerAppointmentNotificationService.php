@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
+use App\Models\Owner;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
@@ -91,6 +92,12 @@ class OwnerAppointmentNotificationService
         // are usually spouses or the humans behind a phoneless LLC), one text
         // and one conversation entry each, shared numbers de-duplicated.
         $owners = $workOrder->notifiableOwners();
+
+        // Every owner left out because they are muted on the Do Not Message
+        // tab: nothing went out, so nothing is logged as if it had.
+        if ($owners->isEmpty() && $workOrder->owners->contains(fn (Owner $owner): bool => $owner->automationsMuted())) {
+            return;
+        }
 
         // No textable owner: log the update once in the owner thread anyway, so
         // the coordinator sees the appointment update went out.

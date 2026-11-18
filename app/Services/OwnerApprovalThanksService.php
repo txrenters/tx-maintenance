@@ -49,7 +49,7 @@ class OwnerApprovalThanksService
             return;
         }
 
-        if ($workOrder->automationPausedFor('owner')) {
+        if ($workOrder->automationPausedFor('owner') || $owner->automationsMuted()) {
             return;
         }
 
