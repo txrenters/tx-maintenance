@@ -16,6 +16,7 @@ use App\Models\WorkOrderNotes;
 use App\Services\InspectionApp\ApprovalGate;
 use App\Services\InspectionApp\HandoffPayload;
 use App\Services\InspectionApp\HandoffService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -338,7 +339,7 @@ class InspectionAppHandoffApprovalTest extends TestCase
     private function approvedReading(int $confidence = 92): void
     {
         OwnerApprovalReaderAgent::fake([[
-            'problems' => [['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light. — owner, 2026-11-10 14:02 (SMS)']],
+            'problems' => [['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light.', 'source' => 'owner, 2026-11-10 14:02 (SMS)']],
             'approved' => true,
             'confidence' => $confidence,
             'summary' => 'Owner approved the hallway light by text on 2026-11-10.',
@@ -348,7 +349,7 @@ class InspectionAppHandoffApprovalTest extends TestCase
     private function noApprovalReading(): void
     {
         OwnerApprovalReaderAgent::fake([[
-            'problems' => [['item' => 'hallway light', 'decision' => 'not_mentioned', 'evidence' => null]],
+            'problems' => [['item' => 'hallway light', 'decision' => 'not_mentioned', 'evidence' => null, 'source' => null]],
             'approved' => false,
             'confidence' => 90,
             'summary' => 'The owner has not answered.',
@@ -425,6 +426,7 @@ class InspectionAppHandoffApprovalTest extends TestCase
         config(['services.inspection_app.handoff_ai_requires_confirmation' => true]);
         $workOrder = $this->workOrder(['cost_estimate' => 450]);
         $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
         $this->approvedReading();
@@ -498,6 +500,148 @@ class InspectionAppHandoffApprovalTest extends TestCase
         Queue::assertNotPushed(ReadOwnerApprovalForHandoff::class);
         $this->assertSame(0, $this->service()->sweep()['read']);
         $this->assertSame('held', $row->fresh()->status);
+    }
+
+    // ---- Findings from the whole-branch review (2026-11-19) ----------------
+
+    public function test_an_emergency_read_back_from_the_database_still_sends(): void
+    {
+        // PropertyWare's flag comes back from the database as 1, not true.
+        Queue::fake();
+        $workOrder = $this->workOrder(['is_emergency' => true, 'cost_estimate' => null]);
+        $this->thmpOn($workOrder);
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('emergency', $row->rule);
+        $this->assertTrue($this->gate()->decide($workOrder->fresh(['vendors']))->send);
+    }
+
+    public function test_a_stored_approving_reading_does_not_send_once_the_reader_is_switched_off(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+        $this->assertSame('pending', $row->fresh()->status);
+
+        $row->refresh()->forceFill(['status' => 'held', 'rule' => null])->save();
+        config(['services.inspection_app.handoff_ai_reader' => false]);
+
+        $this->assertSame(0, $this->service()->sweep()['released']);
+        $this->assertSame('held', $row->fresh()->status);
+    }
+
+    public function test_a_work_order_closed_while_held_is_never_sent_for_the_first_time(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $workOrder->forceFill(['status' => 'Closed'])->save();
+
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+
+        $this->assertNotSame('pending', $row->fresh()->status);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+    }
+
+    public function test_a_recorded_approval_releases_a_held_row_without_asking_the_ai_and_without_a_reading_attached(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        $asked = 0;
+        OwnerApprovalReaderAgent::fake(function () use (&$asked) {
+            $asked++;
+
+            return ['problems' => [['item' => 'x', 'decision' => 'not_mentioned', 'evidence' => null, 'source' => null]], 'approved' => false, 'confidence' => 90, 'summary' => 'Nothing.'];
+        });
+        $workOrder->forceFill(['approved_by' => 'J. Owner'])->save();
+
+        $result = $this->service()->sweep();
+
+        $this->assertSame(1, $result['released']);
+        $this->assertSame(0, $result['read']);
+        $this->assertSame(0, $asked);
+        $row->refresh();
+        $this->assertSame('owner_approved_recorded', $row->rule);
+        $this->assertNull($row->ai_insight_id);
+    }
+
+    public function test_an_old_reading_does_not_ride_along_on_a_send_made_under_another_rule(): void
+    {
+        $workOrder = $this->workOrder(['cost_estimate' => 450, 'approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
+        $this->thmpOn($workOrder);
+        $insight = AiInsight::query()->create([
+            'work_order_id' => $workOrder->id, 'type' => AiInsight::TYPE_OWNER_APPROVAL, 'subject_type' => WorkOrder::class, 'subject_id' => $workOrder->id,
+            'status' => 'open', 'confidence' => 90, 'data' => ['approved' => false, 'valid' => true, 'summary' => 'Owner declined the door.', 'problems' => [['item' => 'door', 'decision' => 'declined', 'evidence' => 'no', 'source' => 'owner']]], 'generated_at' => now(),
+        ]);
+        $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'owner_approved_recorded', 'ai_insight_id' => $insight->id]);
+
+        $payload = app(HandoffPayload::class)->build($workOrder->fresh(['vendors']), $row);
+
+        $this->assertNull($payload['approval']['ai_confidence']);
+        $this->assertNull($payload['approval']['summary']);
+        $this->assertSame([], $payload['approval']['problems']);
+    }
+
+    public function test_a_release_never_flips_a_row_that_was_sent_in_the_meantime(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        // Another process read and sent it while this one still holds a stale model.
+        InspectionAppHandoff::query()->whereKey($row->id)->update(['status' => 'sent', 'rule' => 'owner_approved_in_messages', 'sent_at' => now()]);
+
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+
+        $this->assertSame('sent', $row->fresh()->status);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+    }
+
+    public function test_the_reading_job_runs_once_per_row_at_a_time(): void
+    {
+        $job = new ReadOwnerApprovalForHandoff(42);
+
+        $this->assertInstanceOf(ShouldBeUnique::class, $job);
+        $this->assertSame(42, $job->uniqueId());
+    }
+
+    public function test_the_envelope_never_exceeds_the_receivers_field_limits(): void
+    {
+        $workOrder = $this->workOrder(['cost_estimate' => 450]);
+        $this->thmpOn($workOrder);
+        for ($n = 1; $n <= 55; $n++) {
+            WorkOrderNotes::query()->create(['work_order_id' => $workOrder->id, 'subject' => str_repeat('s', 300), 'body' => "Note {$n} ".str_repeat('x', 5000), 'date' => '2026-11-09', 'is_private' => false]);
+        }
+        $insight = AiInsight::query()->create([
+            'work_order_id' => $workOrder->id, 'type' => AiInsight::TYPE_OWNER_APPROVAL, 'subject_type' => WorkOrder::class, 'subject_id' => $workOrder->id,
+            'status' => 'open', 'confidence' => 92, 'data' => ['approved' => true, 'valid' => true, 'summary' => str_repeat('s', 2000), 'problems' => [['item' => str_repeat('i', 300), 'decision' => 'approved', 'evidence' => str_repeat('e', 900), 'source' => 'owner']]], 'generated_at' => now(),
+        ]);
+        $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'owner_approved_in_messages', 'ai_insight_id' => $insight->id]);
+
+        $payload = app(HandoffPayload::class)->build($workOrder->fresh(['vendors']), $row);
+
+        $this->assertCount(50, $payload['notes']);
+        $this->assertStringContainsString('Note 55', $payload['notes'][49]['body']);
+        foreach ($payload['notes'] as $note) {
+            $this->assertLessThanOrEqual(4000, mb_strlen($note['body']));
+            $this->assertLessThanOrEqual(200, mb_strlen((string) $note['subject']));
+        }
+        $this->assertLessThanOrEqual(1000, mb_strlen($payload['approval']['summary']));
+        $this->assertLessThanOrEqual(120, mb_strlen($payload['approval']['problems'][0]['item']));
+        $this->assertLessThanOrEqual(500, mb_strlen($payload['approval']['problems'][0]['evidence']));
     }
 
     // ---- The envelope ------------------------------------------------------

@@ -388,6 +388,28 @@ const formatDate = (date) => {
                     </CardContent>
                 </Card>
 
+                <!-- Inspection app hand-off: its own card, so a $300+ repair
+                     waiting on the owner says so whether or not the tenant
+                     easy-fix card is there. -->
+                <Card
+                    v-if="inspectionHandoffLine"
+                    class="overflow-hidden border-2"
+                    data-inspection-handoff
+                >
+                    <CardContent class="space-y-1 p-5">
+                        <p class="text-sm font-medium">Technicians' inspection app</p>
+                        <p class="text-sm leading-6 text-muted-foreground">
+                            {{ inspectionHandoffLine }}
+                        </p>
+                        <p
+                            v-if="inspectionHandoff?.reading?.summary"
+                            class="text-sm leading-6 text-muted-foreground"
+                        >
+                            AI reading ({{ inspectionHandoff.reading.confidence }}%): {{ inspectionHandoff.reading.summary }}
+                        </p>
+                    </CardContent>
+                </Card>
+
                 <!-- Tenant easy fix -->
                 <Card
                     v-if="hasEasyFixAssessment"
@@ -434,16 +456,6 @@ const formatDate = (date) => {
                             </template>
                         </p>
 
-                        <p
-                            v-if="inspectionHandoffLine"
-                            class="text-sm leading-6 text-muted-foreground"
-                            data-inspection-handoff
-                        >
-                            {{ inspectionHandoffLine }}
-                            <span v-if="inspectionHandoff?.reading?.summary">
-                                AI reading ({{ inspectionHandoff.reading.confidence }}%): {{ inspectionHandoff.reading.summary }}
-                            </span>
-                        </p>
 
                         <p
                             v-if="intakeEasyFixLabel"

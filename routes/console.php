@@ -362,5 +362,5 @@ Schedule::command('geocode:buildings')
 // changed since the app last saw them. Does nothing while the switch is off.
 Schedule::command('inspection-app:push-work-orders')
     ->everyFiveMinutes()
-    ->withoutOverlapping(10)
+    ->withoutOverlapping(30)
     ->runInBackground();

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\OwnerApprovalReaderAgent;
 use App\Models\AiInsight;
+use App\Models\Conversation;
 use App\Models\InspectionAppHandoff;
 use App\Models\ServiceStatus;
 use App\Models\User;
@@ -76,12 +77,13 @@ class InspectionAppHandoffCommandsTest extends TestCase
 
     public function test_the_evaluation_scores_the_reader_against_approvals_already_on_record_and_stores_nothing(): void
     {
-        $this->thmpWorkOrder(['work_order_no' => 100, 'cost_estimate' => 450, 'approved_by' => 'J. Owner', 'status' => 'Closed', 'created_date' => '2026-06-01']);
+        $approved = $this->thmpWorkOrder(['work_order_no' => 100, 'cost_estimate' => 450, 'approved_by' => 'J. Owner', 'status' => 'Closed', 'created_date' => '2026-06-01']);
+        Conversation::query()->create(['message' => 'Go ahead please.', 'sender_number' => '+15125550100', 'receiver_number' => '+12813787957', 'work_order_id' => $approved->id, 'conversation_type' => 'owner', 'is_read' => false]);
         $this->thmpWorkOrder(['work_order_no' => 101, 'cost_estimate' => 450, 'approved_by' => null, 'status' => 'Canceled By Tenant', 'created_date' => '2026-06-02']);
         $this->thmpWorkOrder(['work_order_no' => 102, 'cost_estimate' => 90, 'status' => 'Closed', 'created_date' => '2026-06-03']);
         $answers = [
-            100 => ['problems' => [['item' => 'light', 'decision' => 'approved', 'evidence' => 'go ahead — owner']], 'approved' => true, 'confidence' => 91, 'summary' => 'Approved.'],
-            101 => ['problems' => [['item' => 'door', 'decision' => 'not_mentioned', 'evidence' => null]], 'approved' => false, 'confidence' => 88, 'summary' => 'No answer.'],
+            100 => ['problems' => [['item' => 'light', 'decision' => 'approved', 'evidence' => 'Go ahead please.', 'source' => 'owner (SMS)']], 'approved' => true, 'confidence' => 91, 'summary' => 'Approved.'],
+            101 => ['problems' => [['item' => 'door', 'decision' => 'not_mentioned', 'evidence' => null, 'source' => null]], 'approved' => false, 'confidence' => 88, 'summary' => 'No answer.'],
         ];
         OwnerApprovalReaderAgent::fake(function (string $prompt) use ($answers): array {
             preg_match('/WORK ORDER #(\d+)/', $prompt, $match);
@@ -100,5 +102,19 @@ class InspectionAppHandoffCommandsTest extends TestCase
 
         $this->assertSame(0, AiInsight::query()->count());
         $this->assertSame(0, InspectionAppHandoff::query()->count());
+    }
+
+    public function test_the_json_output_is_one_reading_per_line_and_nothing_else(): void
+    {
+        $this->thmpWorkOrder(['work_order_no' => 100, 'cost_estimate' => 450, 'approved_by' => 'J. Owner', 'status' => 'Closed', 'created_date' => '2026-06-01']);
+        OwnerApprovalReaderAgent::fake([['problems' => [['item' => 'door', 'decision' => 'not_mentioned', 'evidence' => null, 'source' => null]], 'approved' => false, 'confidence' => 88, 'summary' => 'No answer.']]);
+
+        Artisan::call('inspection-app:evaluate-approval-reader', ['--since' => '2026-01-01', '--limit' => 10, '--json' => true]);
+        $lines = array_values(array_filter(explode("\n", trim(Artisan::output()))));
+
+        $this->assertCount(1, $lines);
+        $decoded = json_decode($lines[0], true);
+        $this->assertSame(100, $decoded['work_order_no']);
+        $this->assertTrue($decoded['recorded']);
     }
 }

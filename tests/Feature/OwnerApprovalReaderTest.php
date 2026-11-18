@@ -96,16 +96,72 @@ class OwnerApprovalReaderTest extends TestCase
     }
 
     /**
-     * @param  list<array{item: string, decision: string, evidence: ?string}>  $problems
+     * @param  list<array{item: string, decision: string, evidence: ?string, source?: ?string}>  $problems
      */
     private function fakeReading(array $problems, bool $approved, int $confidence, string $summary): void
     {
         OwnerApprovalReaderAgent::fake([[
-            'problems' => $problems,
+            'problems' => array_map(fn (array $problem): array => $problem + ['source' => $problem['evidence'] === null ? null : 'owner'], $problems),
             'approved' => $approved,
             'confidence' => $confidence,
             'summary' => $summary,
         ]]);
+    }
+
+    public function test_an_approval_whose_quote_is_not_in_any_owner_message_is_invalid(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->ownerText($workOrder, 'How much is the door by itself?', true, '2026-11-10 14:02:00');
+        $this->fakeReading([['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light.']], true, 97, 'Approved.');
+
+        $insight = $this->reader()->read($workOrder);
+
+        $this->assertFalse($insight->data['valid']);
+        $this->assertFalse($this->reader()->approves($insight));
+        $this->assertStringContainsString('not found in the owner', $insight->data['error']);
+    }
+
+    public function test_a_quote_taken_from_the_offices_own_message_does_not_approve(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->ownerText($workOrder, 'Owner says go ahead with the light.', false, '2026-11-10 13:00:00');
+        $this->fakeReading([['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'go ahead with the light']], true, 97, 'Approved.');
+
+        $insight = $this->reader()->read($workOrder);
+
+        $this->assertFalse($insight->data['valid']);
+        $this->assertFalse($this->reader()->approves($insight));
+    }
+
+    public function test_a_quote_matches_the_owners_message_loosely_on_case_spacing_and_quote_marks(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->ownerEmail($workOrder, "Yes -  GO AHEAD with   the light,\nthanks.", true);
+        $this->fakeReading([['item' => 'hallway light', 'decision' => 'approved', 'evidence' => '"yes - go ahead with the light, thanks."']], true, 95, 'Approved by email.');
+
+        $insight = $this->reader()->read($workOrder);
+
+        $this->assertTrue($insight->data['valid']);
+        $this->assertTrue($this->reader()->approves($insight));
+        $this->assertSame('owner', $insight->data['problems'][0]['source']);
+    }
+
+    public function test_preview_masks_the_approval_fields_so_the_score_is_honest(): void
+    {
+        $workOrder = $this->workOrder();
+        $workOrder->forceFill(['approved_by' => 'J. Owner', 'approved_date' => '2026-11-10'])->save();
+        $seen = '';
+        OwnerApprovalReaderAgent::fake(function (string $prompt) use (&$seen): array {
+            $seen = $prompt;
+
+            return ['problems' => [['item' => 'light', 'decision' => 'not_mentioned', 'evidence' => null, 'source' => null]], 'approved' => false, 'confidence' => 90, 'summary' => 'Nothing.'];
+        });
+
+        $this->reader()->preview($workOrder);
+
+        $this->assertStringNotContainsString('J. Owner', $seen);
+        $this->assertStringNotContainsString('2026-11-10', $seen);
+        $this->assertStringContainsString('Approved by: (hidden for evaluation)', $seen);
     }
 
     public function test_the_text_carries_the_description_notes_approval_comment_and_owner_threads_in_order_and_nothing_else(): void
@@ -147,8 +203,8 @@ class OwnerApprovalReaderTest extends TestCase
         $workOrder = $this->workOrder();
         $this->ownerText($workOrder, 'Go ahead with the light. Hold off on the door for now.', true, '2026-11-10 14:02:00');
         $this->fakeReading([
-            ['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light. — owner, 2026-11-10 14:02 (SMS)'],
-            ['item' => 'front door', 'decision' => 'declined', 'evidence' => 'Hold off on the door for now. — owner, 2026-11-10 14:02 (SMS)'],
+            ['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'Go ahead with the light.', 'source' => 'owner, 2026-11-10 14:02 (SMS)'],
+            ['item' => 'front door', 'decision' => 'declined', 'evidence' => 'Hold off on the door for now.', 'source' => 'owner, 2026-11-10 14:02 (SMS)'],
             ['item' => 'lawn', 'decision' => 'not_mentioned', 'evidence' => null],
         ], true, 92, 'Owner approved the hallway light by text on 2026-11-10; declined the door; did not mention the lawn.');
 
@@ -210,7 +266,7 @@ class OwnerApprovalReaderTest extends TestCase
         $this->ownerText($workOrder, 'Yes go ahead with all of it', true, '2026-11-12 08:00:00');
         $this->assertTrue($this->reader()->isStale($workOrder->fresh(), $first));
 
-        $this->fakeReading([['item' => 'all', 'decision' => 'approved', 'evidence' => 'Yes go ahead with all of it — owner']], true, 95, 'Approved all.');
+        $this->fakeReading([['item' => 'all', 'decision' => 'approved', 'evidence' => 'Yes go ahead with all of it']], true, 95, 'Approved all.');
         $second = $this->reader()->read($workOrder->fresh());
         $this->assertSame($first->id, $second->id);
         $this->assertTrue($this->reader()->approves($second));
@@ -229,7 +285,8 @@ class OwnerApprovalReaderTest extends TestCase
     public function test_preview_reads_without_storing(): void
     {
         $workOrder = $this->workOrder();
-        $this->fakeReading([['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'go — owner']], true, 90, 'Yes.');
+        $this->ownerText($workOrder, 'go', true, '2026-11-10 14:02:00');
+        $this->fakeReading([['item' => 'hallway light', 'decision' => 'approved', 'evidence' => 'go']], true, 90, 'Yes.');
 
         $reading = $this->reader()->preview($workOrder);
 

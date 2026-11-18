@@ -68,7 +68,8 @@ class ApprovalGate
         $threshold = $this->threshold();
         $estimate = $this->estimate($workOrder);
 
-        if ($workOrder->is_emergency === true) {
+        // A boolean in the schema, but a row read back carries 1, not true.
+        if ((bool) $workOrder->is_emergency) {
             return ApprovalDecision::send(InspectionAppHandoff::RULE_EMERGENCY, $estimate, $threshold);
         }
 
@@ -80,7 +81,9 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
         }
 
-        $reading ??= $this->reader->latestFor($workOrder);
+        // The reader's switch is a kill switch: off, a stored reading sends
+        // nothing either, and the work order waits for the approval fields.
+        $reading = $this->reader->enabled() ? ($reading ?? $this->reader->latestFor($workOrder)) : null;
 
         if ($reading !== null && $this->reader->approves($reading)) {
             if ((bool) config('services.inspection_app.handoff_ai_requires_confirmation', false)) {

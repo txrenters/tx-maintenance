@@ -97,21 +97,37 @@ class HandoffPayload
      */
     private function notes(WorkOrder $workOrder): array
     {
+        // The receiver takes at most 50 notes of 4000 characters: the newest
+        // 50, still oldest first, each cut to fit, rather than a 422.
         return WorkOrderNotes::query()
             ->with('user')
             ->where('work_order_id', $workOrder->id)
             ->orderBy('id')
             ->get()
             ->map(fn (WorkOrderNotes $note): ?array => trim((string) $note->body) === '' ? null : [
-                'subject' => $this->stringOrNull($note->subject),
-                'body' => trim((string) $note->body),
-                'author' => $this->stringOrNull($note->user?->name),
+                'subject' => $this->clip($this->stringOrNull($note->subject), 200),
+                'body' => $this->clip(trim((string) $note->body), 4000),
+                'author' => $this->clip($this->stringOrNull($note->user?->name), 120),
                 'date' => $this->iso($note->date ?: $note->created_at),
                 'is_private' => (bool) $note->is_private,
             ])
             ->filter()
+            ->slice(-50)
             ->values()
             ->all();
+    }
+
+    /**
+     * Cut to the receiver's limit, counting characters as it does. Null
+     * stays null.
+     */
+    private function clip(?string $value, int $max): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return mb_strlen($value) > $max ? rtrim(mb_substr($value, 0, $max - 1)).'…' : $value;
     }
 
     /**
@@ -122,7 +138,11 @@ class HandoffPayload
      */
     private function approval(WorkOrder $workOrder, ?InspectionAppHandoff $row): array
     {
-        $reading = $row?->aiInsight;
+        // The reading goes only when it is what let the work order through.
+        // A reading left over from an earlier hold must not ride along on a
+        // send made under another rule: "declined" beside "approval on record"
+        // would tell the crew two things at once.
+        $reading = $row?->rule === InspectionAppHandoff::RULE_OWNER_APPROVED_IN_MESSAGES ? $row->aiInsight : null;
         $summary = $reading === null ? null : OwnerApprovalReader::summarize($reading);
         $recorded = $this->gate->approvalRecorded($workOrder);
 
@@ -130,12 +150,16 @@ class HandoffPayload
             'rule' => $row?->rule,
             'threshold' => $this->gate->threshold(),
             'estimate' => $this->gate->estimate($workOrder),
-            'recorded_by' => $recorded ? $this->stringOrNull($workOrder->approved_by) : null,
+            'recorded_by' => $recorded ? $this->clip($this->stringOrNull($workOrder->approved_by), 120) : null,
             'recorded_at' => $recorded ? $this->iso($workOrder->approved_date) : null,
             'ai_confidence' => $summary['confidence'] ?? null,
             'ai_read_at' => $summary['read_at'] ?? null,
-            'summary' => $summary['summary'] ?? null,
-            'problems' => $summary['problems'] ?? [],
+            'summary' => $this->clip($summary['summary'] ?? null, 1000),
+            'problems' => array_map(fn (array $problem): array => [
+                'item' => (string) $this->clip((string) ($problem['item'] ?? ''), 120),
+                'decision' => (string) ($problem['decision'] ?? 'not_mentioned'),
+                'evidence' => $this->clip($this->stringOrNull($problem['evidence'] ?? null), 500),
+            ], array_slice($summary['problems'] ?? [], 0, 30)),
         ];
     }
 

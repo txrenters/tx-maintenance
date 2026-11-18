@@ -94,9 +94,13 @@ class EvaluateOwnerApprovalReader extends Command
             }
         }
 
-        if (! $this->option('json')) {
-            $this->table(['WO', 'On record', 'AI', 'Confidence', 'Summary'], $rows);
+        // --json prints one reading per line and nothing else, so the output
+        // can be redirected straight into a .jsonl file.
+        if ($this->option('json')) {
+            return self::SUCCESS;
         }
+
+        $this->table(['WO', 'On record', 'AI', 'Confidence', 'Summary'], $rows);
 
         $scored = count($rows) - $unreadable;
         $this->info(sprintf('Agreed with the record: %d of %d.', $agreed, $scored));

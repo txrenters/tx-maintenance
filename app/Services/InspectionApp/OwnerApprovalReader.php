@@ -52,7 +52,7 @@ class OwnerApprovalReader
      * the approval fields, the Notes tab, then the owner's messages oldest
      * first. Only owner-party text: tenant and vendor threads are never here.
      */
-    public function text(WorkOrder $workOrder): string
+    public function text(WorkOrder $workOrder, bool $withApprovalFields = true): string
     {
         $estimate = app(ApprovalGate::class)->estimate($workOrder);
         $lines = [
@@ -63,8 +63,10 @@ class OwnerApprovalReader
             'Specific location: '.($this->excerpt($workOrder->specific_location, 300) ?: 'n/a'),
             '',
             'APPROVAL FIELDS (from PropertyWare)',
-            'Approved by: '.($this->excerpt($workOrder->approved_by, 120) ?: 'none'),
-            'Approved date: '.($workOrder->approved_date ? $this->when($workOrder->approved_date, false) : 'none'),
+            // The evaluation hides the two fields it scores the reading
+            // against; a held work order in production always has them blank.
+            'Approved by: '.($withApprovalFields ? ($this->excerpt($workOrder->approved_by, 120) ?: 'none') : '(hidden for evaluation)'),
+            'Approved date: '.($withApprovalFields ? ($workOrder->approved_date ? $this->when($workOrder->approved_date, false) : 'none') : '(hidden for evaluation)'),
             'Approval comment: '.($this->excerpt($workOrder->approval_comments, 2000) ?: 'none'),
             '',
             'NOTES TAB (oldest first)',
@@ -136,7 +138,7 @@ class OwnerApprovalReader
      */
     public function preview(WorkOrder $workOrder): ?array
     {
-        return $this->ask($workOrder, $this->text($workOrder));
+        return $this->ask($workOrder, $this->text($workOrder, withApprovalFields: false));
     }
 
     public function latestFor(WorkOrder $workOrder): ?AiInsight
@@ -205,21 +207,33 @@ class OwnerApprovalReader
             return null;
         }
 
+        $ownerWords = $this->ownerMessages($workOrder)
+            ->filter(fn (array $message): bool => $message['who'] === 'owner')
+            ->map(fn (array $message): string => $this->normalizeQuote($message['text']))
+            ->values()
+            ->all();
+
         return $this->validate(match (true) {
             is_array($response) => $response,
             $response instanceof Arrayable => $response->toArray(),
             default => (array) $response,
-        });
+        }, $ownerWords);
     }
 
     /**
+     * An approval stands only on the owner's own words: the quote must appear
+     * in a message the owner wrote, not in the office's, a note or the
+     * approval comment. Compared loosely -- case, spacing and quote marks
+     * collapsed -- because the model copies text, not bytes.
+     *
      * @param  array<string, mixed>  $response
-     * @return array{approved: bool, valid: bool, confidence: int, summary: string, problems: list<array{item: string, decision: string, evidence: ?string}>, error: ?string}
+     * @param  list<string>  $ownerWords  Every owner-written message, normalized.
+     * @return array{approved: bool, valid: bool, confidence: int, summary: string, problems: list<array{item: string, decision: string, evidence: ?string, source: ?string}>, error: ?string}
      */
-    private function validate(array $response): array
+    private function validate(array $response, array $ownerWords): array
     {
         $confidence = max(0, min(100, (int) data_get($response, 'confidence', 0)));
-        $summary = Str::limit(trim((string) data_get($response, 'summary', '')), 600);
+        $summary = Str::limit(trim((string) data_get($response, 'summary', '')), 597);
         $rawProblems = data_get($response, 'problems');
         $problems = [];
         $error = null;
@@ -231,6 +245,7 @@ class OwnerApprovalReader
                 $item = trim((string) data_get($problem, 'item', ''));
                 $decision = trim((string) data_get($problem, 'decision', ''));
                 $evidence = trim((string) data_get($problem, 'evidence', ''));
+                $source = trim((string) data_get($problem, 'source', ''));
 
                 if ($item === '' || ! in_array($decision, self::DECISIONS, true)) {
                     $error = 'A problem had no name or an unknown decision.';
@@ -242,7 +257,17 @@ class OwnerApprovalReader
                     break;
                 }
 
-                $problems[] = ['item' => Str::limit($item, 120), 'decision' => $decision, 'evidence' => $evidence === '' ? null : Str::limit($evidence, 500)];
+                if ($decision === 'approved' && ! $this->quotedFromOwner($evidence, $ownerWords)) {
+                    $error = "\"{$item}\" was marked approved with words not found in the owner's own messages.";
+                    break;
+                }
+
+                $problems[] = [
+                    'item' => Str::limit($item, 117),
+                    'decision' => $decision,
+                    'evidence' => $evidence === '' ? null : Str::limit($evidence, 497),
+                    'source' => $source === '' ? null : Str::limit($source, 117),
+                ];
             }
         }
 
@@ -316,6 +341,34 @@ class OwnerApprovalReader
             ->filter(fn (array $message): bool => $message['text'] !== '')
             ->sortBy('at')
             ->values();
+    }
+
+    /**
+     * @param  list<string>  $ownerWords
+     */
+    private function quotedFromOwner(string $evidence, array $ownerWords): bool
+    {
+        $quote = $this->normalizeQuote($evidence);
+
+        if ($quote === '') {
+            return false;
+        }
+
+        foreach ($ownerWords as $words) {
+            if ($words !== '' && str_contains($words, $quote)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeQuote(string $text): string
+    {
+        $text = mb_strtolower(trim($text));
+        $text = trim($text, " \t\n\r\0\x0B\"'“”‘’");
+
+        return trim((string) preg_replace('/\s+/u', ' ', $text));
     }
 
     private function sortKey(mixed $value): string

@@ -4,10 +4,12 @@ namespace App\Services\InspectionApp;
 
 use App\Jobs\PushWorkOrderToInspectionApp;
 use App\Jobs\ReadOwnerApprovalForHandoff;
+use App\Models\AiInsight;
 use App\Models\InspectionAppHandoff;
 use App\Models\WorkOrder;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -76,7 +78,7 @@ class HandoffService
 
         // A work order the app has already been told about is updated, never
         // pulled back through the filter: a later change goes as an update.
-        if ($row && $row->status !== InspectionAppHandoff::STATUS_HELD && $row->rule !== null) {
+        if ($row && $row->status !== InspectionAppHandoff::STATUS_HELD) {
             $row->forceFill(['status' => InspectionAppHandoff::STATUS_PENDING, 'reason' => $reason])->save();
             PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
 
@@ -92,7 +94,7 @@ class HandoffService
 
         $this->release($row, $this->gate->decide($workOrder));
 
-        return $row;
+        return $row->refresh();
     }
 
     /**
@@ -116,51 +118,112 @@ class HandoffService
      */
     public function readAndRelease(int $handoffId): bool
     {
-        $row = InspectionAppHandoff::query()->find($handoffId);
-
-        if (! $row || $row->status !== InspectionAppHandoff::STATUS_HELD || ! $this->enabled()) {
+        if (! $this->enabled()) {
             return false;
         }
 
-        $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
-
-        if (! $workOrder || ! $this->rule->qualifies($workOrder)) {
-            return false;
-        }
-
-        $reading = $this->reader->latestFor($workOrder);
         $asked = false;
-
-        if ($this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading))) {
-            $reading = $this->reader->read($workOrder) ?? $reading;
-            $asked = true;
-        }
-
-        $decision = $this->gate->decide($workOrder, $reading);
-        $row->forceFill(['ai_insight_id' => $reading?->id])->save();
-        $this->releaseWithoutReading($row, $decision);
+        $this->lockRow($handoffId, function (InspectionAppHandoff $row) use (&$asked): void {
+            $asked = $this->decideHeldRow($row, true, false);
+        });
 
         return $asked;
     }
 
-    private function releaseWithoutReading(InspectionAppHandoff $row, ApprovalDecision $decision): void
+    /**
+     * One held row, decided again: a rule that needs no reading goes first,
+     * so an approval entered in PropertyWare never costs an AI call; only a
+     * row still held, whose text changed, is read, and only when allowed.
+     * Returns whether the AI was asked.
+     */
+    private function decideHeldRow(InspectionAppHandoff $row, bool $mayRead, bool $dryRun): bool
     {
+        $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
+
+        if (! $workOrder || ! $this->rule->qualifies($workOrder) || ! $this->rule->isOpen($workOrder)) {
+            if (! $dryRun) {
+                InspectionAppHandoff::query()->whereKey($row->id)->where('status', InspectionAppHandoff::STATUS_HELD)
+                    ->update(['status' => InspectionAppHandoff::STATUS_SKIPPED, 'last_error' => 'No longer ours, or closed before it was ever sent.']);
+            }
+
+            return false;
+        }
+
+        $reading = $this->reader->enabled() ? $this->reader->latestFor($workOrder) : null;
+        $decision = $this->gate->decide($workOrder, $reading);
+        $asked = false;
+
+        if (! $decision->send && $decision->needsReading && $mayRead) {
+            $asked = true;
+
+            if (! $dryRun) {
+                $reading = $this->reader->read($workOrder) ?? $reading;
+                $decision = $this->gate->decide($workOrder, $reading);
+            }
+        }
+
+        if (! $dryRun) {
+            $this->releaseWithoutReading($row, $decision, $reading);
+        }
+
+        return $asked;
+    }
+
+    /**
+     * Run the callback with this row locked and freshly loaded, so the queued
+     * reading and the sweep never work the same row at once. A row somebody
+     * else holds is left for them; a row no longer held is left alone.
+     */
+    private function lockRow(int $handoffId, callable $callback): void
+    {
+        $lock = Cache::lock("inspection-app-handoff:row:{$handoffId}", 120);
+
+        if (! $lock->get()) {
+            return;
+        }
+
+        try {
+            $row = InspectionAppHandoff::query()->find($handoffId);
+
+            if ($row && $row->status === InspectionAppHandoff::STATUS_HELD) {
+                $callback($row);
+            }
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * The one write that moves a row. Conditional on the row still being
+     * held, so a stale model in one process can never push a row another
+     * process has already sent, or send it twice. The reading is attached
+     * only when it is what let the row go, or while the row stays held and
+     * the page should show it.
+     */
+    private function releaseWithoutReading(InspectionAppHandoff $row, ApprovalDecision $decision, ?AiInsight $reading = null): void
+    {
+        $stillHeld = InspectionAppHandoff::query()->whereKey($row->id)->where('status', InspectionAppHandoff::STATUS_HELD);
+
         if ($decision->send) {
-            $row->forceFill([
+            $moved = $stillHeld->update([
                 'status' => InspectionAppHandoff::STATUS_PENDING,
                 'rule' => $decision->rule,
                 'held_reason' => null,
-            ])->save();
-            PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+                'ai_insight_id' => $decision->rule === InspectionAppHandoff::RULE_OWNER_APPROVED_IN_MESSAGES ? $reading?->id : null,
+            ]);
+
+            if ($moved === 1) {
+                PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+            }
 
             return;
         }
 
-        $row->forceFill([
-            'status' => InspectionAppHandoff::STATUS_HELD,
+        $stillHeld->update([
             'rule' => null,
             'held_reason' => $decision->heldReason,
-        ])->save();
+            'ai_insight_id' => $reading?->id,
+        ]);
     }
 
     /**
@@ -345,50 +408,24 @@ class HandoffService
         $released = 0;
         $read = 0;
 
-        foreach ($rows as $row) {
-            $workOrder = WorkOrder::withoutGlobalScopes()->with('vendors')->find($row->work_order_id);
-
-            if (! $workOrder || ! $this->rule->qualifies($workOrder) || ! $this->rule->isOpen($workOrder)) {
-                if (! $dryRun) {
-                    $row->forceFill(['status' => InspectionAppHandoff::STATUS_SKIPPED, 'last_error' => 'No longer ours, or closed before it was ever sent.'])->save();
+        foreach ($rows as $held) {
+            $this->lockRow($held->id, function (InspectionAppHandoff $row) use (&$released, &$read, $cap, $dryRun): void {
+                if ($this->decideHeldRow($row, $read < $cap, $dryRun)) {
+                    $read++;
                 }
 
-                continue;
-            }
-
-            $reading = $this->reader->latestFor($workOrder);
-            $stale = $this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading));
-
-            if ($stale && $read < $cap) {
-                $read++;
-
-                if (! $dryRun) {
-                    $reading = $this->reader->read($workOrder) ?? $reading;
+                if ($dryRun ? $this->gate->decide($this->workOrderFor($row))->send : $row->fresh()?->status === InspectionAppHandoff::STATUS_PENDING) {
+                    $released++;
                 }
-            }
-
-            $decision = $this->gate->decide($workOrder, $reading);
-
-            if (! $dryRun) {
-                $row->forceFill(['ai_insight_id' => $reading?->id])->save();
-            }
-
-            if ($decision->send) {
-                $released++;
-
-                if (! $dryRun) {
-                    $this->releaseWithoutReading($row, $decision);
-                }
-
-                continue;
-            }
-
-            if (! $dryRun) {
-                $row->forceFill(['held_reason' => $decision->heldReason])->save();
-            }
+            });
         }
 
         return ['held' => $rows->count(), 'released' => $released, 'read' => $read];
+    }
+
+    private function workOrderFor(InspectionAppHandoff $row): WorkOrder
+    {
+        return WorkOrder::withoutGlobalScopes()->with('vendors')->findOrFail($row->work_order_id);
     }
 
     /**
