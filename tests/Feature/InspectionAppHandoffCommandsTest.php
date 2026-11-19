@@ -42,12 +42,15 @@ class InspectionAppHandoffCommandsTest extends TestCase
      */
     private function thmpWorkOrder(array $attributes): WorkOrder
     {
-        $workOrder = WorkOrder::factory()->create($attributes);
+        // The estimate is the crew's own, on its assignment; PropertyWare's is $0.
+        $estimate = $attributes['cost_estimate'] ?? null;
+        unset($attributes['cost_estimate']);
+        $workOrder = WorkOrder::factory()->create($attributes + ['cost_estimate' => 0]);
         $vendor = Vendor::query()->firstOrCreate(
             ['propertyware_id' => Vendor::THMP_PROPERTYWARE_ID],
             ['name' => Vendor::THMP_NAME, 'is_active' => true, 'user_id' => User::factory()->create()->id],
         );
-        DB::table('work_order_vendors')->insert(['work_order_id' => $workOrder->id, 'vendor_id' => $vendor->id, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('work_order_vendors')->insert(['work_order_id' => $workOrder->id, 'vendor_id' => $vendor->id, 'cost_estimate' => $estimate, 'created_at' => now(), 'updated_at' => now()]);
 
         return $workOrder;
     }
@@ -70,6 +73,8 @@ class InspectionAppHandoffCommandsTest extends TestCase
         $output = Artisan::output();
 
         $this->assertStringContainsString('43761', $output);
+        // The crew's estimate the rule used, not PropertyWare's $0.
+        $this->assertStringContainsString('$450.00', $output);
         $this->assertStringContainsString('92%', $output);
         $this->assertStringContainsString('Owner approved the hallway light.', $output);
         $this->assertStringNotContainsString('43762', $output);

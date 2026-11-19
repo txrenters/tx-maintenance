@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\OwnerEmailNotification;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\InspectionApp\OwnerApprovalReader;
@@ -41,13 +42,21 @@ class OwnerApprovalReaderTest extends TestCase
 
     private function workOrder(): WorkOrder
     {
-        return WorkOrder::factory()->create([
+        $workOrder = WorkOrder::factory()->create([
             'work_order_no' => 43761,
             'description' => 'Hallway light out, front door sticks, lawn overgrown',
             'specific_location' => 'Upstairs',
-            'cost_estimate' => 450,
+            'cost_estimate' => 0,
             'approval_comments' => null,
         ]);
+        // The estimate the reader shows is the crew's own, on its assignment.
+        $thmp = Vendor::query()->firstOrCreate(
+            ['propertyware_id' => Vendor::THMP_PROPERTYWARE_ID],
+            ['name' => Vendor::THMP_NAME, 'is_active' => true, 'user_id' => User::factory()->create()->id],
+        );
+        $workOrder->vendors()->attach($thmp->id, ['cost_estimate' => 450]);
+
+        return $workOrder;
     }
 
     private function ownerText(WorkOrder $workOrder, string $message, bool $fromOwner, string $at): Conversation
