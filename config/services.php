@@ -21,23 +21,25 @@ return [
         // default: the receiving route on the app's gateway must exist first.
         'handoff' => env('INSPECTION_APP_HANDOFF_ENABLED', false),
         'handoff_path' => env('INSPECTION_APP_HANDOFF_PATH', '/api/v1/gateway/work-orders'),
+        // These lists fall back to their defaults when the variable is blank,
+        // as .env.example ships it (and as the PR check copies it).
         // Our own crews, by PropertyWare vendor id (read off production
         // 2026-11-12): Texas Home Maintenance Pros, Crystal Creek Air, LLC,
         // Crystal Creek Pest Control LLC. Comma-separated.
-        'handoff_vendor_ids' => env('INSPECTION_APP_HANDOFF_VENDOR_IDS', '246120584,5466750978,4329930755'),
+        'handoff_vendor_ids' => env('INSPECTION_APP_HANDOFF_VENDOR_IDS') ?: '246120584,5466750978,4329930755',
         // ...and by exact name as a backup for a renamed or re-created row.
         // Separated by "|" because a company name carries commas. Exact,
         // trimmed, case-insensitive: never a prefix, so "Crystal Creek
         // Construction" (1373863948, inactive) stays out.
-        'handoff_vendor_names' => env('INSPECTION_APP_HANDOFF_VENDOR_NAMES', 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC'),
+        'handoff_vendor_names' => env('INSPECTION_APP_HANDOFF_VENDOR_NAMES') ?: 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC',
         // Outside companies staff tag THMP onto only so the Jobber job gets
         // created (Jimmie Gendke SFA): their work orders never go across.
         // PropertyWare vendor ids, comma-separated.
-        'handoff_skip_vendor_ids' => env('INSPECTION_APP_HANDOFF_SKIP_VENDOR_IDS', '4802084865'),
+        'handoff_skip_vendor_ids' => env('INSPECTION_APP_HANDOFF_SKIP_VENDOR_IDS') ?: '4802084865',
         // Go-live without a backfill (the office, 2026-11-19): a work order
         // created before this date is never handed off for the first time.
         // ISO date, e.g. 2026-12-01. Unset = every open work order qualifies.
-        'handoff_since' => env('INSPECTION_APP_HANDOFF_SINCE'),
+        'handoff_since' => env('INSPECTION_APP_HANDOFF_SINCE') ?: null,
         // Only work orders a crew may start are sent (docs/superpowers/specs/
         // 2026-11-19-work-order-handoff-approval-filter-design.md). Under this
         // estimate the office does not ask the owner; at or over it, the owner

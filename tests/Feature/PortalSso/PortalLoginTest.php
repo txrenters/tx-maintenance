@@ -4,6 +4,7 @@ namespace Tests\Feature\PortalSso;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -147,6 +148,10 @@ class PortalLoginTest extends TestCase
 
     public function test_an_email_that_only_matches_under_the_database_collation_is_never_linked(): void
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            $this->markTestSkipped('Only a MySQL collation equates "josé" with "jose"; sqlite compares bytes.');
+        }
+
         $lookalike = $this->staff('woc', ['email' => 'josé@texasrenters.com']);
         $this->portalReturns(['sub' => 'uuid-jose', 'email' => 'jose@texasrenters.com', 'name' => 'J']);
 
