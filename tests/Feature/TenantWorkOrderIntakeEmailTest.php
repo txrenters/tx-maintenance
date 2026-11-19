@@ -422,13 +422,11 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
 
         $this->assertTrue($this->send($workOrder));
 
-        fwrite(STDERR, "
-=== DIAG gate-off: php ".PHP_VERSION." sends=".count($captured->recipients)." gate=".var_export(config('services.twilio.tenant_easy_fix_sms'), true)." key=".var_export($workOrder->fresh()->easy_fix_key, true)." subject=".$captured->subject."
-".$captured->html."
-=== END DIAG ===
-");
         $this->assertStringContainsString('We received your service request', $captured->subject);
-        $this->assertStringNotContainsString('youtu.be', $captured->html);
+        // The how-to video stays out; the app block at the foot of every tenant
+        // email carries its own videos, so "no youtu.be at all" is not the test.
+        $this->assertStringNotContainsString('https://youtu.be/disposal', $captured->html);
+        $this->assertStringNotContainsString('Watch the how-to video', $captured->html);
     }
 
     public function test_a_refrigerator_request_is_emailed_the_handbook_video_like_any_other_easy_fix(): void
