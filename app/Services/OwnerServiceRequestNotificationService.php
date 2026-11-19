@@ -201,6 +201,7 @@ class OwnerServiceRequestNotificationService
         }
 
         return $workOrder->owners
+            ->reject(fn (Owner $owner): bool => $owner->automationsMuted())
             ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
             ->filter(fn (Owner $owner): bool => $workOrder->normalizedOwnerPhone($owner) === null)
             ->filter(fn (Owner $owner): bool => $this->ownerEmail($owner) !== null)

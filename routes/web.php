@@ -9,6 +9,7 @@ use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\AutomatedMessageLogController;
 use App\Http\Controllers\AutomatedMessageTemplatesController;
+use App\Http\Controllers\AutomationMutedContactsController;
 use App\Http\Controllers\BoardSummaryController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
@@ -188,6 +189,12 @@ Route::middleware([
     Route::get('/it-tools/automated-messages/templates', [AutomatedMessageTemplatesController::class, 'index'])->name('it-tools.automated-messages.templates');
     Route::put('/it-tools/automated-messages/templates/{key}', [AutomatedMessageTemplatesController::class, 'update'])->name('it-tools.automated-messages.templates.update');
     Route::delete('/it-tools/automated-messages/templates/{key}', [AutomatedMessageTemplatesController::class, 'reset'])->name('it-tools.automated-messages.templates.reset');
+
+    // Do Not Message tab: owners and tenants who never receive automated
+    // messages. Admin + WOC, enforced in the controller.
+    Route::get('/it-tools/automated-messages/muted-contacts', [AutomationMutedContactsController::class, 'index'])->name('it-tools.automated-messages.muted');
+    Route::get('/it-tools/automated-messages/muted-contacts/search', [AutomationMutedContactsController::class, 'search'])->name('it-tools.automated-messages.muted.search');
+    Route::put('/it-tools/automated-messages/muted-contacts/{type}/{id}', [AutomationMutedContactsController::class, 'update'])->whereNumber('id')->name('it-tools.automated-messages.muted.update');
 
     // Read-only AI insights: a work order's open schedule suggestions, and
     // resolving one (accept/dismiss). Admin + WOC, enforced in the controller.

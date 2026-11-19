@@ -42,7 +42,7 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
 
         $owner = $workOrder->primaryOwner();
 
-        if (! $owner instanceof Owner || ! filter_var($owner->email, FILTER_VALIDATE_EMAIL) || str_ends_with(strtolower($owner->email), '@texasrenter.com')) {
+        if (! $owner instanceof Owner || $owner->automationsMuted() || ! filter_var($owner->email, FILTER_VALIDATE_EMAIL) || str_ends_with(strtolower($owner->email), '@texasrenter.com')) {
             return;
         }
 

@@ -201,8 +201,9 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        // A WOC can mute this work order's tenant automation from the tenant tab.
-        if ($workOrder->automationPausedFor('tenant')) {
+        // A WOC can mute this work order's tenant automation from the tenant
+        // tab, or mute the tenant themselves on the Do Not Message tab.
+        if ($workOrder->automationPausedFor('tenant') || $workOrder->requesterAutomationsMuted()) {
             return;
         }
 

@@ -81,7 +81,7 @@ class FollowUpTenantSchedule extends Command
             // A WOC can mute this work order's tenant automation from the tenant
             // conversation tab. Checked before the day-claim so a muted day is
             // not consumed and the reminders resume if switched back on.
-            if ($workOrder->automationPausedFor('tenant')) {
+            if ($workOrder->automationPausedFor('tenant') || $workOrder->requesterAutomationsMuted()) {
                 continue;
             }
 

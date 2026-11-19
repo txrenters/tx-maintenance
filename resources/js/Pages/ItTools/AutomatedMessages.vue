@@ -38,7 +38,9 @@ import {
     TabsTrigger,
 } from "@/Components/ui/tabs";
 import MessageTemplateEditor from "./Partials/MessageTemplateEditor.vue";
+import MutedContactsEditor from "./Partials/MutedContactsEditor.vue";
 import {
+    BellOff,
     Bot,
     Briefcase,
     Eye,
@@ -65,9 +67,11 @@ const selectedLog = ref(null);
 
 // The active tab survives the full page reloads the log filters trigger via
 // the URL hash, so applying a filter never bounces staff out of the editor.
+const hashTabs = ["templates", "do-not-message"];
 const activeTab = ref(
-    typeof window !== "undefined" && window.location.hash === "#templates"
-        ? "templates"
+    typeof window !== "undefined" &&
+        hashTabs.includes(window.location.hash.slice(1))
+        ? window.location.hash.slice(1)
         : "log"
 );
 
@@ -77,7 +81,7 @@ const onTabChange = (tab) => {
         window.history.replaceState(
             null,
             "",
-            tab === "templates" ? "#templates" : window.location.pathname + window.location.search
+            hashTabs.includes(tab) ? `#${tab}` : window.location.pathname + window.location.search
         );
     }
 };
@@ -212,6 +216,10 @@ const statTiles = computed(() => [
                 <TabsTrigger value="templates" class="gap-1.5">
                     <PenLine class="h-4 w-4" />
                     Message Templates
+                </TabsTrigger>
+                <TabsTrigger value="do-not-message" class="gap-1.5">
+                    <BellOff class="h-4 w-4" />
+                    Do Not Message
                 </TabsTrigger>
             </TabsList>
 
@@ -440,6 +448,10 @@ const statTiles = computed(() => [
 
             <TabsContent value="templates" class="mt-4">
                 <MessageTemplateEditor />
+            </TabsContent>
+
+            <TabsContent value="do-not-message" class="mt-4">
+                <MutedContactsEditor />
             </TabsContent>
         </Tabs>
 

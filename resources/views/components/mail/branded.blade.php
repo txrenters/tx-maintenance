@@ -2,6 +2,8 @@
     'logo' => null,
     'eyebrow' => null,
     'heading' => null,
+    // Owner and tenant emails: adds the "Get the TexasRenters app" block above the footer.
+    'appPromo' => false,
 ])
 <!doctype html>
 <html>
@@ -47,6 +49,10 @@
                             {{ $slot }}
                         </td>
                     </tr>
+
+                    @if($appPromo)
+                    <x-mail.app-promo />
+                    @endif
 
                     <!-- Footer -->
                     <tr>

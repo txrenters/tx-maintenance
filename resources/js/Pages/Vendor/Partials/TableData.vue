@@ -50,6 +50,13 @@ const syncVendor = (vendor) => {
                     <p v-if="vendor.email" class="text-xs font-normal text-muted-foreground">
                         {{ vendor.email }}
                     </p>
+                    <p
+                        v-if="vendor.cc_emails?.length"
+                        class="text-xs font-normal text-muted-foreground"
+                        :title="'Also emailed: ' + vendor.cc_emails.join(', ')"
+                    >
+                        cc {{ vendor.cc_emails.join(", ") }}
+                    </p>
                     <span class="flex flex-col md:hidden">
                         <p class="text-xs font-normal">
                             {{ vendor.phone }}

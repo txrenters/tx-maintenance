@@ -102,6 +102,7 @@ class OwnerPortalController extends Controller
             'token' => $portalToken->token,
             'ownerName' => trim((string) ($owner->first_name ?: $owner->name)),
             'wocName' => $workOrder->woc?->name,
+            'clientApp' => config('client_app'),
             'unreadMessages' => $messages->where('read_by_owner', false)->count(),
             'workOrder' => [
                 'work_order_no' => $workOrder->work_order_no,

@@ -349,8 +349,9 @@ class TenantPortalLinkService
     private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message, string $automationKey): bool
     {
         // A WOC can mute this work order's tenant automation from the tenant
-        // conversation tab; manual sends are unaffected.
-        if ($workOrder->automationPausedFor('tenant')) {
+        // conversation tab, or the tenant on the Do Not Message tab; manual
+        // sends are unaffected.
+        if ($workOrder->automationPausedFor('tenant') || $workOrder->requesterAutomationsMuted()) {
             return false;
         }
 

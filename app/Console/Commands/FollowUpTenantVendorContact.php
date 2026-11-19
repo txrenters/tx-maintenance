@@ -141,7 +141,7 @@ class FollowUpTenantVendorContact extends Command
             // A WOC can mute this work order's tenant automation from the tenant
             // conversation tab; skip the nudge while paused (it resumes if the
             // WOC switches it back on and there is still no schedule).
-            if ($workOrder->automationPausedFor('tenant')) {
+            if ($workOrder->automationPausedFor('tenant') || $workOrder->requesterAutomationsMuted()) {
                 continue;
             }
 

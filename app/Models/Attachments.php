@@ -15,6 +15,37 @@ class Attachments extends Model
 {
     protected $table = 'attachments';
 
+    /**
+     * The parts of a home a vendor can file a turnover "after" photo under,
+     * in the order the office walks the property. The vendor portal offers
+     * exactly this list; keep resources/js/utils/turnoverAreas.js in step.
+     *
+     * @var list<string>
+     */
+    public const TURNOVER_AREAS = [
+        'Entrance',
+        'Living Room',
+        'Dining Room',
+        'Kitchen',
+        'Bedroom 1',
+        'Bedroom 2',
+        'Bedroom 3',
+        'Bedroom 4',
+        'Bathroom 1',
+        'Bathroom 2',
+        'Bathroom 3',
+        'Bathroom 4',
+        'Office Room',
+        'Game Room',
+        'Laundry Room',
+        'Hallway',
+        'Garage',
+        'Carpet Cleaning',
+        'Lawn',
+        'Window Glass Replacement',
+        'Haul Away',
+    ];
+
     protected $guarded = [];
 
     protected $appends = [

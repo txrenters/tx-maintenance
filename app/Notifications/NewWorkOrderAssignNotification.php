@@ -39,7 +39,12 @@ class NewWorkOrderAssignNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
+        // A vendor's extra addresses (an office inbox) are copied, so the
+        // assignment reaches someone who can act on it.
+        $cc = method_exists($notifiable, 'ccEmailList') ? $notifiable->ccEmailList() : [];
+
         return (new MailMessage)
+            ->cc($cc)
             ->subject('New Work Order Assigned: #'.$this->workOrder->work_order_no)
             ->greeting('Hello '.($notifiable->name ?? '').',')
             ->line('You have been assigned a new work order.')

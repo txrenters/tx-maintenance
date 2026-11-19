@@ -10,7 +10,7 @@
     $isEasyFix = $easyFix !== null;
     $eyebrow = $staffCreated ? 'New Work Order' : ($isEasyFix ? 'A Quick Fix You Can Try' : 'Service Request Received');
 @endphp
-<x-mail.branded :logo="$logoSrc" :eyebrow="$eyebrow" heading="Work Order #{{ $reference }}">
+<x-mail.branded :logo="$logoSrc" app-promo :eyebrow="$eyebrow" heading="Work Order #{{ $reference }}">
     <p style="margin:12px 0;">{{ $tenantName ? 'Hi '.$tenantName.',' : 'Hello,' }}</p>
     @if($staffCreated)
     <p style="margin:12px 0;">

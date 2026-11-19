@@ -175,6 +175,10 @@ class NudgeOwnerApproval extends Command
             ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership);
 
         foreach ($owners as $owner) {
+            if ($owner->automationsMuted()) {
+                continue;
+            }
+
             $email = $this->ownerEmail($owner);
 
             if ($email === null || isset($seen[$email])) {
