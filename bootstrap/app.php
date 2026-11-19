@@ -19,7 +19,21 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
-ini_set('memory_limit', '256M');
+// A floor, not a cap: raise a smaller default (php-fpm ships 128M) to 256M,
+// but leave a larger or unlimited limit alone. Static analysis boots this
+// file through Larastan and needs far more than 256M; a flat ini_set here
+// used to pull it down to 256M whatever PHPStan was started with.
+$memoryLimit = (string) ini_get('memory_limit');
+$memoryLimitBytes = match (strtoupper(substr($memoryLimit, -1))) {
+    'G' => (int) $memoryLimit * 1024 ** 3,
+    'M' => (int) $memoryLimit * 1024 ** 2,
+    'K' => (int) $memoryLimit * 1024,
+    default => (int) $memoryLimit,
+};
+
+if ($memoryLimit !== '-1' && $memoryLimitBytes < 256 * 1024 ** 2) {
+    ini_set('memory_limit', '256M');
+}
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

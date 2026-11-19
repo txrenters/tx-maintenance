@@ -46,6 +46,7 @@ class ImportBuildingsFromWorkOrders extends Command
 
                     if ($propertywareId === 0 || isset($this->existingBuildingIds[$propertywareId])) {
                         $skipped++;
+
                         continue;
                     }
 
@@ -53,6 +54,7 @@ class ImportBuildingsFromWorkOrders extends Command
 
                     if (! $buildingData) {
                         $skipped++;
+
                         continue;
                     }
 

@@ -19,6 +19,22 @@ class ScheduledImportResilienceTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Without credentials the service logs a "missing credentials" error on
+     * construction, which the strict Log expectations below would trip over
+     * (CI has no PropertyWare credentials; a developer's .env usually does).
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'services.propertyware.url' => 'https://propertyware.test/soap',
+            'services.propertyware.username' => 'test-user',
+            'services.propertyware.password' => 'test-password',
+        ]);
+    }
+
     public function test_a_soap_failure_yields_an_empty_list_not_an_error_string(): void
     {
         $service = $this->partialMock(PropertyWareService::class, function ($mock) {

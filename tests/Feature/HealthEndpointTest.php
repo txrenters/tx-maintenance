@@ -28,6 +28,9 @@ class HealthEndpointTest extends TestCase
     {
         DB::shouldReceive('connection->getPdo')
             ->andThrow(new QueryException('mysql', 'select 1', [], new Exception('No such file or directory')));
+        // The framework walks the open connections on the way out; with the
+        // facade mocked there are none.
+        DB::shouldReceive('getConnections')->andReturn([]);
 
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('database');
@@ -39,6 +42,9 @@ class HealthEndpointTest extends TestCase
     {
         DB::shouldReceive('connection->getPdo')
             ->andThrow(new QueryException('mysql', 'select 1', [], new Exception('No such file or directory')));
+        // The framework walks the open connections on the way out; with the
+        // facade mocked there are none.
+        DB::shouldReceive('getConnections')->andReturn([]);
 
         // Production runs with debug off; the failure detail names internal
         // paths and must only reach the logs, never an anonymous response.
