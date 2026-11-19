@@ -422,6 +422,11 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
 
         $this->assertTrue($this->send($workOrder));
 
+        fwrite(STDERR, "
+=== DIAG gate-off: php ".PHP_VERSION." sends=".count($captured->recipients)." gate=".var_export(config('services.twilio.tenant_easy_fix_sms'), true)." key=".var_export($workOrder->fresh()->easy_fix_key, true)." subject=".$captured->subject."
+".$captured->html."
+=== END DIAG ===
+");
         $this->assertStringContainsString('We received your service request', $captured->subject);
         $this->assertStringNotContainsString('youtu.be', $captured->html);
     }
