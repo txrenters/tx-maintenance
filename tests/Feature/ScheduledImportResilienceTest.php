@@ -19,6 +19,19 @@ class ScheduledImportResilienceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The service only talks to PropertyWare when it has credentials; the
+        // PR check runs on .env.example, where there are none.
+        config([
+            'services.propertyware.url' => 'https://app.propertyware.com/pw/services',
+            'services.propertyware.username' => 'api-user',
+            'services.propertyware.password' => 'api-pass',
+        ]);
+    }
+
     public function test_a_soap_failure_yields_an_empty_list_not_an_error_string(): void
     {
         $service = $this->partialMock(PropertyWareService::class, function ($mock) {

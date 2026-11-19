@@ -25,6 +25,7 @@ use App\Services\EasyFixBoardDetails;
 use App\Services\EmergencyAlertService;
 use App\Services\HvacBoardActivityFeed;
 use App\Services\HvacBoardNewCounter;
+use App\Services\InspectionApp\HandoffService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\TenantEasyFixService;
@@ -1602,6 +1603,12 @@ class WorkOrderController extends Controller
 
             DB::commit();
 
+            // One of our own crews on it: the technicians' inspection app
+            // gets the work order now (nothing when the switch is off).
+            if (! empty($newVendorIds)) {
+                app(HandoffService::class)->consider($workOrder->id, 'vendor_change');
+            }
+
             return back()->with('success', 'Work order vendors updated successfully.');
 
         } catch (\Throwable $e) {
@@ -1649,6 +1656,10 @@ class WorkOrderController extends Controller
 
         if (Vendor::isThmpAssignedToWorkOrder($workOrder->id)) {
             CreateJobberJobForWorkOrder::dispatch($workOrder->id);
+        }
+
+        if (! empty($newVendorIds)) {
+            app(HandoffService::class)->consider($workOrder->id, 'vendor_change');
         }
 
         return back()->with('success', 'Work order vendors updated successfully.');

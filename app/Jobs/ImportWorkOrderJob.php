@@ -6,6 +6,7 @@ use App\Models\Owner;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
+use App\Services\InspectionApp\HandoffService;
 use App\Services\OwnerPhoneResolver;
 use App\Services\TaskService;
 use App\Services\WorkOrderNoteSyncService;
@@ -410,6 +411,10 @@ class ImportWorkOrderJob implements ShouldQueue
             // generates checklist tasks; without them the vendor portal cannot
             // advance the status.
             TaskService::backfillVendorTasks($work_order, array_column($vendorsData, 'vendor_id'));
+
+            // A work order arriving with one of our own crews on it goes to
+            // the technicians' inspection app as soon as this import commits.
+            app(HandoffService::class)->consider($work_order, 'import');
         }
     }
 

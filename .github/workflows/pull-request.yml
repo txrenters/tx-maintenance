@@ -58,10 +58,29 @@ jobs:
       # RefreshDatabase rebuilds it. Part of the suite only passes on sqlite
       # (MySQL strict mode rejects the fixture values some tests rely on), so
       # a MySQL service here would fail the check on tests, not on the code.
-      - name: Run tests
+      # bootstrap/app.php pins memory_limit to 256M at boot, whatever the CLI
+      # was started with, and one process running the whole suite dies at
+      # that cap around the V* tests. So the suite runs as four processes,
+      # each far below the cap; the sqlite file is rebuilt by each.
+      - name: Run the unit tests
         env:
           DB_CONNECTION: sqlite
-        run: php -d memory_limit=1G artisan test --compact
+        run: php artisan test --compact --testsuite=Unit
+
+      - name: Run the feature tests, A to H
+        env:
+          DB_CONNECTION: sqlite
+        run: php artisan test --compact --testsuite=Feature --filter '^Tests.Feature.[A-H]'
+
+      - name: Run the feature tests, I to R
+        env:
+          DB_CONNECTION: sqlite
+        run: php artisan test --compact --testsuite=Feature --filter '^Tests.Feature.[I-R]'
+
+      - name: Run the feature tests, S to Z
+        env:
+          DB_CONNECTION: sqlite
+        run: php artisan test --compact --testsuite=Feature --filter '^Tests.Feature.[S-Z]'
 
   # The Dockerfile installs Node through NodeSource rather than setup-node, so
   # the job above never exercises it. Building the image is the only check that

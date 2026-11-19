@@ -8,6 +8,57 @@ return [
         'token' => env('PORTAL_API_TOKEN'),
     ],
 
+    // The technicians' inspection app (the other developer's; pages at
+    // inspection.texasrenters.com, the API at inspection-api.texasrenters.com).
+    // url = the API host, token = "<key id>.<secret>" from its API clients
+    // page, with request signing ON and a write scope for work orders.
+    // Blank URL or token = nothing is sent anywhere.
+    'inspection_app' => [
+        'url' => env('INSPECTION_APP_URL'),
+        'token' => env('INSPECTION_APP_TOKEN'),
+        // Hand every work order for our own crews to the app the moment one
+        // of those vendors lands on it (App\Services\InspectionApp). OFF by
+        // default: the receiving route on the app's gateway must exist first.
+        'handoff' => env('INSPECTION_APP_HANDOFF_ENABLED', false),
+        'handoff_path' => env('INSPECTION_APP_HANDOFF_PATH', '/api/v1/gateway/work-orders'),
+        // These lists fall back to their defaults when the variable is blank,
+        // as .env.example ships it (and as the PR check copies it).
+        // Our own crews, by PropertyWare vendor id (read off production
+        // 2026-11-12): Texas Home Maintenance Pros, Crystal Creek Air, LLC,
+        // Crystal Creek Pest Control LLC. Comma-separated.
+        'handoff_vendor_ids' => env('INSPECTION_APP_HANDOFF_VENDOR_IDS') ?: '246120584,5466750978,4329930755',
+        // ...and by exact name as a backup for a renamed or re-created row.
+        // Separated by "|" because a company name carries commas. Exact,
+        // trimmed, case-insensitive: never a prefix, so "Crystal Creek
+        // Construction" (1373863948, inactive) stays out.
+        'handoff_vendor_names' => env('INSPECTION_APP_HANDOFF_VENDOR_NAMES') ?: 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC',
+        // Outside companies staff tag THMP onto only so the Jobber job gets
+        // created (Jimmie Gendke SFA): their work orders never go across.
+        // PropertyWare vendor ids, comma-separated.
+        'handoff_skip_vendor_ids' => env('INSPECTION_APP_HANDOFF_SKIP_VENDOR_IDS') ?: '4802084865',
+        // Go-live without a backfill (the office, 2026-11-19): a work order
+        // created before this date is never handed off for the first time.
+        // ISO date, e.g. 2026-12-01. Unset = every open work order qualifies.
+        'handoff_since' => env('INSPECTION_APP_HANDOFF_SINCE') ?: null,
+        // Only work orders a crew may start are sent (docs/superpowers/specs/
+        // 2026-11-19-work-order-handoff-approval-filter-design.md). Under this
+        // estimate the office does not ask the owner; at or over it, the owner
+        // must have approved -- on record, or in messages as the AI reads them.
+        'handoff_approval_threshold' => (float) env('INSPECTION_APP_HANDOFF_APPROVAL_THRESHOLD', 300),
+        // The AI reads notes and owner threads for a work order held over the
+        // threshold. Off = such work orders wait for the approval fields.
+        'handoff_ai_reader' => env('INSPECTION_APP_HANDOFF_AI_READER_ENABLED', true),
+        // A reading at or above this confidence sends the work order on its
+        // own. The office chose no coordinator step (2026-11-19).
+        'handoff_ai_confidence' => (int) env('INSPECTION_APP_HANDOFF_AI_MIN_CONFIDENCE', 80),
+        // True holds an AI-read approval instead of sending it, with the reading
+        // shown on the work order; the office enters the approval in
+        // PropertyWare to send. Off because the office asked for automatic.
+        'handoff_ai_requires_confirmation' => env('INSPECTION_APP_HANDOFF_AI_REQUIRES_CONFIRMATION', false),
+        // Readings per five-minute sweep, so a backlog cannot run up a bill.
+        'handoff_ai_reads_per_sweep' => (int) env('INSPECTION_APP_HANDOFF_AI_READS_PER_SWEEP', 20),
+    ],
+
     'chatbot' => [
         'enabled' => env('CHATBOT_HUB_ENABLED', false),
         'url' => env('CHATBOT_HUB_URL'),

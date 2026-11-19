@@ -28,6 +28,14 @@ class AiInsight extends Model
      */
     public const TYPE_EASY_FIX_READY = 'easy_fix_ready';
 
+    /**
+     * The AI's reading of a work order's notes and owner threads: which of
+     * its problems the owner approved, with the owner's words quoted. One
+     * per work order (the subject is the WorkOrder row); a confident yes lets
+     * the inspection-app hand-off send it.
+     */
+    public const TYPE_OWNER_APPROVAL = 'owner_approval';
+
     public const STATUS_OPEN = 'open';
 
     public const STATUS_ACCEPTED = 'accepted';

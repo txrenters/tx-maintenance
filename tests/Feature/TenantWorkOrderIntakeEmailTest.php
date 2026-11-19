@@ -423,7 +423,10 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertTrue($this->send($workOrder));
 
         $this->assertStringContainsString('We received your service request', $captured->subject);
-        $this->assertStringNotContainsString('youtu.be', $captured->html);
+        // The how-to video stays out; the app block at the foot of every tenant
+        // email carries its own videos, so "no youtu.be at all" is not the test.
+        $this->assertStringNotContainsString('https://youtu.be/disposal', $captured->html);
+        $this->assertStringNotContainsString('Watch the how-to video', $captured->html);
     }
 
     public function test_a_refrigerator_request_is_emailed_the_handbook_video_like_any_other_easy_fix(): void
