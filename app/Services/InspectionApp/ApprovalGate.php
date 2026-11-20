@@ -14,20 +14,23 @@ use Illuminate\Support\Str;
  * 2026-11-19-work-order-handoff-approval-filter-design.md):
  *
  *   0. An emergency goes, whatever it costs, quoted or not.
- *   1. No estimate from the crew yet: it waits for one ("Hold until there's
+ *   1. An approval on record (approved_by / approved_date, synced from
+ *      PropertyWare) goes, quoted or not ("if it is approve move forward",
+ *      the office, 2026-11-21).
+ *   2. No estimate from the crew yet: it waits for one ("Hold until there's
  *      an estimate", the office, 2026-11-20). Nothing to approve, so the AI
  *      does not read it; the crew's estimate releases it (HandoffService is
  *      called when it is saved, and the sweep checks every five minutes).
- *   2. $300 or below goes: the office does not ask the owner.
- *   3. Over it ($301 and up), an approval on record (approved_by /
- *      approved_date, synced from PropertyWare) goes.
- *   4. Otherwise it waits for the AI's reading of the owner's messages
- *      (OwnerApprovalReader), and says why it is waiting.
+ *   3. A $0 estimate with no approval waits ("if estimation is zero but no
+ *      approve do not forward", the office, 2026-11-21).
+ *   4. $1 to $300 goes: the office does not ask the owner.
+ *   5. Over it ($301 and up), it waits for the AI's reading of the owner's
+ *      messages (OwnerApprovalReader), and says why it is waiting.
  *
  * The estimate is our crew's own, entered on the work order in the vendor
  * portal or the Vendor Edit tab. PropertyWare's estimate is left out -- it is
  * $0 on every work order -- and so is an outside vendor's quote on the same
- * work order, which is not the crew's job. A crew that types $0 has quoted.
+ * work order, which is not the crew's job.
  */
 class ApprovalGate
 {
@@ -36,6 +39,9 @@ class ApprovalGate
 
     /** The held reason, and the hand-off card's words, while the crew has not quoted. */
     public const WAITING_FOR_THE_ESTIMATE = "Waiting for the crew's estimate";
+
+    /** The held reason for a $0 estimate with no approval on record. */
+    public const ZERO_ESTIMATE_NOT_APPROVED = 'Estimate is $0, and no owner approval is recorded';
 
     public function __construct(private OwnerApprovalReader $reader, private HandoffRule $rule) {}
 
@@ -76,16 +82,20 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_EMERGENCY, $estimate, $threshold);
         }
 
+        if ($this->approvalRecorded($workOrder)) {
+            return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
+        }
+
         if ($estimate === null) {
             return ApprovalDecision::hold(self::WAITING_FOR_THE_ESTIMATE, null, $threshold, false);
         }
 
-        if ($estimate <= $threshold) {
-            return ApprovalDecision::send(InspectionAppHandoff::RULE_UNDER_THRESHOLD, $estimate, $threshold);
+        if ($estimate <= 0.0) {
+            return ApprovalDecision::hold(self::ZERO_ESTIMATE_NOT_APPROVED, $estimate, $threshold, false);
         }
 
-        if ($this->approvalRecorded($workOrder)) {
-            return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
+        if ($estimate <= $threshold) {
+            return ApprovalDecision::send(InspectionAppHandoff::RULE_UNDER_THRESHOLD, $estimate, $threshold);
         }
 
         // The reader's switch is a kill switch: off, a stored reading sends
