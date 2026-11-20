@@ -120,6 +120,19 @@ class InspectionAppHandoffApprovalTest extends TestCase
         return WorkOrder::factory()->create($attributes + ['is_emergency' => false, 'cost_estimate' => null, 'approved_by' => null, 'approved_date' => null]);
     }
 
+    /**
+     * A work order with THMP on it, carrying the crew's own estimate.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function crewEstimate(float $estimate, array $attributes = []): WorkOrder
+    {
+        $workOrder = $this->workOrder($attributes);
+        $this->thmpOn($workOrder, $estimate);
+
+        return $workOrder->fresh(['vendors']);
+    }
+
     private function thmpOn(WorkOrder $workOrder, ?float $pivotEstimate = null): Vendor
     {
         $vendor = Vendor::query()->firstOrCreate(
@@ -145,63 +158,87 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertSame('emergency', $decision->rule);
     }
 
-    public function test_under_the_threshold_sends_without_asking_the_owner(): void
-    {
-        $decision = $this->gate()->decide($this->workOrder(['cost_estimate' => 299.99]));
-
-        $this->assertTrue($decision->send);
-        $this->assertSame('under_threshold', $decision->rule);
-        $this->assertSame(299.99, $decision->estimate);
-        $this->assertSame(300.0, $decision->threshold);
-    }
-
-    public function test_the_crews_estimate_stands_in_when_the_work_order_has_none(): void
+    public function test_the_crews_estimate_of_300_or_below_sends_without_asking_the_owner(): void
     {
         $workOrder = $this->workOrder();
-        $this->thmpOn($workOrder, 180.00);
+        $this->thmpOn($workOrder, 300.00);
 
         $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
 
         $this->assertTrue($decision->send);
-        $this->assertSame(180.0, $decision->estimate);
+        $this->assertSame('under_threshold', $decision->rule);
+        $this->assertSame(300.0, $decision->estimate);
+        $this->assertSame(300.0, $decision->threshold);
     }
 
-    public function test_at_or_over_the_threshold_an_approval_on_record_sends(): void
+    public function test_no_estimate_from_the_crew_sends_as_a_small_job(): void
     {
-        $byName = $this->gate()->decide($this->workOrder(['cost_estimate' => 300, 'approved_by' => 'J. Owner']));
-        $byDate = $this->gate()->decide($this->workOrder(['cost_estimate' => 1200, 'approved_date' => '2026-11-10']));
+        $blank = $this->workOrder();
+        $this->thmpOn($blank);
+        $zero = $this->workOrder();
+        $this->thmpOn($zero, 0.0);
 
-        $this->assertTrue($byName->send);
-        $this->assertSame('owner_approved_recorded', $byName->rule);
-        $this->assertTrue($byDate->send);
-        $this->assertSame('owner_approved_recorded', $byDate->rule);
+        $none = $this->gate()->decide($blank->fresh(['vendors']));
+
+        $this->assertTrue($none->send);
+        $this->assertSame('under_threshold', $none->rule);
+        $this->assertNull($none->estimate);
+        $this->assertTrue($this->gate()->decide($zero->fresh(['vendors']))->send);
     }
 
-    public function test_over_the_threshold_with_nothing_recorded_holds_and_says_why(): void
+    public function test_the_propertyware_estimate_on_the_work_order_is_not_the_crews(): void
     {
-        $decision = $this->gate()->decide($this->workOrder(['cost_estimate' => 450]));
+        // The office (2026-11-20): "not from PW because all of them is zero".
+        $workOrder = $this->workOrder(['cost_estimate' => 2500]);
+        $this->thmpOn($workOrder, 120.00);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertTrue($decision->send);
+        $this->assertSame(120.0, $decision->estimate);
+    }
+
+    public function test_an_outside_vendors_quote_never_holds_the_crews_work(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 95.00);
+        $outside = Vendor::query()->create(['name' => 'She Nailed It Construction, LLC', 'propertyware_id' => '999000111', 'is_active' => true, 'user_id' => User::factory()->create()->id]);
+        DB::table('work_order_vendors')->insert(['work_order_id' => $workOrder->id, 'vendor_id' => $outside->id, 'cost_estimate' => 3300.00, 'created_at' => now(), 'updated_at' => now()]);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertTrue($decision->send);
+        $this->assertSame(95.0, $decision->estimate);
+    }
+
+    public function test_over_300_an_approval_on_record_sends(): void
+    {
+        $byName = $this->workOrder(['approved_by' => 'J. Owner']);
+        $this->thmpOn($byName, 300.01);
+        $byDate = $this->workOrder(['approved_date' => '2026-11-10']);
+        $this->thmpOn($byDate, 1200.00);
+
+        $this->assertSame('owner_approved_recorded', $this->gate()->decide($byName->fresh(['vendors']))->rule);
+        $this->assertSame('owner_approved_recorded', $this->gate()->decide($byDate->fresh(['vendors']))->rule);
+    }
+
+    public function test_301_with_nothing_recorded_holds_and_says_why(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 301.00);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
 
         $this->assertFalse($decision->send);
         $this->assertNull($decision->rule);
         $this->assertTrue($decision->needsReading);
-        $this->assertSame('Estimate $450.00 is over $300, and no owner approval is recorded', $decision->heldReason);
-    }
-
-    public function test_no_estimate_at_all_is_held_not_treated_as_cheap(): void
-    {
-        $none = $this->gate()->decide($this->workOrder());
-        $zero = $this->gate()->decide($this->workOrder(['cost_estimate' => 0]));
-
-        $this->assertFalse($none->send);
-        $this->assertSame('No estimate on the work order, and no owner approval is recorded', $none->heldReason);
-        $this->assertFalse($zero->send);
-        $this->assertNull($zero->estimate);
+        $this->assertSame('Estimate $301.00 is over $300, and no owner approval is recorded', $decision->heldReason);
     }
 
     public function test_a_blank_or_placeholder_approver_is_not_an_approval(): void
     {
-        $blank = $this->gate()->decide($this->workOrder(['cost_estimate' => 450, 'approved_by' => '   ']));
-        $na = $this->gate()->decide($this->workOrder(['cost_estimate' => 450, 'approved_by' => 'N/A']));
+        $blank = $this->gate()->decide($this->crewEstimate(450.0, ['approved_by' => '   ']));
+        $na = $this->gate()->decide($this->crewEstimate(450.0, ['approved_by' => 'N/A']));
 
         $this->assertFalse($blank->send);
         $this->assertFalse($na->send);
@@ -211,7 +248,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     {
         config(['services.inspection_app.handoff_approval_threshold' => 500]);
 
-        $this->assertTrue($this->gate()->decide($this->workOrder(['cost_estimate' => 450]))->send);
+        $this->assertTrue($this->gate()->decide($this->crewEstimate(450.0))->send);
+        $this->assertFalse($this->gate()->decide($this->crewEstimate(501.0))->send);
     }
 
     // ---- The gate in the hand-off ------------------------------------------
@@ -219,8 +257,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_consider_sends_a_cheap_work_order_and_names_the_rule(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 120]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 120.0);
 
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
@@ -233,8 +271,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_consider_holds_an_expensive_work_order_with_the_reason_and_pushes_nothing(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
 
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
@@ -247,8 +285,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_push_refuses_a_held_row(): void
     {
         Http::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'held', 'held_reason' => 'x']);
 
         $this->service()->push($row->id);
@@ -261,8 +299,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_held_row_is_decided_again_when_the_work_order_comes_back_through_consider(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->service()->consider($workOrder->id, 'vendor_assigned');
 
         $workOrder->forceFill(['approved_by' => 'J. Owner'])->save();
@@ -277,12 +315,12 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_sent_work_order_is_not_pulled_back_by_a_later_change(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 120]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 120.0);
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         $row->forceFill(['status' => 'sent', 'sent_at' => now(), 'payload_hash' => 'abc'])->save();
 
-        $workOrder->forceFill(['cost_estimate' => 900])->save();
+        DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->update(['cost_estimate' => 900]);
         $again = $this->service()->consider($workOrder->id, 'status_sync');
 
         $this->assertSame('pending', $again->status);
@@ -292,8 +330,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_the_sweep_releases_a_held_row_once_the_approval_is_on_record(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->service()->consider($workOrder->id, 'vendor_assigned');
         $workOrder->forceFill(['approved_date' => '2026-11-12'])->save();
 
@@ -311,10 +349,10 @@ class InspectionAppHandoffApprovalTest extends TestCase
     {
         Queue::fake();
         config(['services.inspection_app.handoff_since' => '2026-12-01']);
-        $old = $this->workOrder(['cost_estimate' => 120, 'created_date' => '2026-11-20']);
-        $new = $this->workOrder(['cost_estimate' => 120, 'created_date' => '2026-12-02']);
-        $this->thmpOn($old);
-        $this->thmpOn($new);
+        $old = $this->workOrder(['created_date' => '2026-11-20']);
+        $new = $this->workOrder(['created_date' => '2026-12-02']);
+        $this->thmpOn($old, 120.0);
+        $this->thmpOn($new, 120.0);
 
         $this->assertNull($this->service()->consider($old->id, 'vendor_assigned'));
         $this->assertSame('pending', $this->service()->consider($new->id, 'vendor_assigned')->status);
@@ -325,8 +363,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_the_manual_push_by_number_skips_the_filter_and_says_so(): void
     {
         Http::fake(['*' => Http::response(['id' => 'insp_1'], 201)]);
-        $workOrder = $this->workOrder(['cost_estimate' => 900]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 900.0);
 
         $row = $this->service()->pushNow((int) $workOrder->work_order_no);
 
@@ -371,8 +409,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_consider_queues_a_reading_for_a_held_work_order_and_the_reading_sends_it(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
 
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
@@ -392,8 +430,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_reading_that_finds_no_approval_keeps_the_row_held_and_says_what_it_read(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'How much is the door by itself?');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
@@ -410,8 +448,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_reading_under_the_confidence_bar_does_not_send(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
         $this->approvedReading(70);
@@ -424,8 +462,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     {
         Queue::fake();
         config(['services.inspection_app.handoff_ai_requires_confirmation' => true]);
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
@@ -444,8 +482,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
         Queue::fake();
         config(['services.inspection_app.handoff_ai_reads_per_sweep' => 2]);
         foreach ([1, 2, 3] as $n) {
-            $workOrder = $this->workOrder(['cost_estimate' => 450, 'description' => "Problem {$n}"]);
-            $this->thmpOn($workOrder);
+            $workOrder = $this->workOrder(['description' => "Problem {$n}"]);
+            $this->thmpOn($workOrder, 450.0);
             $this->service()->consider($workOrder->id, 'vendor_assigned');
         }
         $asked = 0;
@@ -471,8 +509,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_the_sweep_reads_again_only_when_the_owner_writes_again(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         $this->noApprovalReading();
         $this->service()->readAndRelease($row->id);
@@ -492,8 +530,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     {
         Queue::fake();
         config(['services.inspection_app.handoff_ai_reader' => false]);
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
 
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
 
@@ -521,8 +559,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_stored_approving_reading_does_not_send_once_the_reader_is_switched_off(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         $this->approvedReading();
@@ -539,8 +577,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_work_order_closed_while_held_is_never_sent_for_the_first_time(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         $workOrder->forceFill(['status' => 'Closed'])->save();
@@ -555,8 +593,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_recorded_approval_releases_a_held_row_without_asking_the_ai_and_without_a_reading_attached(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         $asked = 0;
         OwnerApprovalReaderAgent::fake(function () use (&$asked) {
@@ -578,8 +616,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
 
     public function test_an_old_reading_does_not_ride_along_on_a_send_made_under_another_rule(): void
     {
-        $workOrder = $this->workOrder(['cost_estimate' => 450, 'approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder(['approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
+        $this->thmpOn($workOrder, 450.0);
         $insight = AiInsight::query()->create([
             'work_order_id' => $workOrder->id, 'type' => AiInsight::TYPE_OWNER_APPROVAL, 'subject_type' => WorkOrder::class, 'subject_id' => $workOrder->id,
             'status' => 'open', 'confidence' => 90, 'data' => ['approved' => false, 'valid' => true, 'summary' => 'Owner declined the door.', 'problems' => [['item' => 'door', 'decision' => 'declined', 'evidence' => 'no', 'source' => 'owner']]], 'generated_at' => now(),
@@ -596,8 +634,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_a_release_never_flips_a_row_that_was_sent_in_the_meantime(): void
     {
         Queue::fake();
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
         // Another process read and sent it while this one still holds a stale model.
@@ -620,8 +658,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
 
     public function test_the_envelope_never_exceeds_the_receivers_field_limits(): void
     {
-        $workOrder = $this->workOrder(['cost_estimate' => 450]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
         for ($n = 1; $n <= 55; $n++) {
             WorkOrderNotes::query()->create(['work_order_id' => $workOrder->id, 'subject' => str_repeat('s', 300), 'body' => "Note {$n} ".str_repeat('x', 5000), 'date' => '2026-11-09', 'is_private' => false]);
         }
@@ -649,8 +687,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_the_envelope_carries_the_estimate_the_notes_and_the_approval_block(): void
     {
         Http::fake(['*' => Http::response(['id' => 'insp_9'], 201)]);
-        $workOrder = $this->workOrder(['cost_estimate' => 450, 'work_order_no' => 43761]);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder(['work_order_no' => 43761]);
+        $this->thmpOn($workOrder, 450.0);
         WorkOrderNotes::query()->create(['work_order_id' => $workOrder->id, 'subject' => 'Tenant call', 'body' => 'Light out a week', 'date' => '2026-11-09', 'is_private' => false]);
         $this->ownerSaid($workOrder, 'Go ahead with the light.');
         $this->approvedReading();
@@ -678,8 +716,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
 
     public function test_the_envelope_names_the_recorded_approver_for_a_recorded_approval(): void
     {
-        $workOrder = $this->workOrder(['cost_estimate' => 450, 'approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
-        $this->thmpOn($workOrder);
+        $workOrder = $this->workOrder(['approved_by' => 'J. Owner', 'approved_date' => '2026-11-10']);
+        $this->thmpOn($workOrder, 450.0);
         $row = InspectionAppHandoff::query()->create(['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'owner_approved_recorded']);
 
         $payload = app(HandoffPayload::class)->build($workOrder->fresh(['vendors']), $row);

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\InspectionAppHandoff;
+use App\Services\InspectionApp\ApprovalGate;
 use App\Services\InspectionApp\OwnerApprovalReader;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -21,10 +22,10 @@ class ListInspectionAppHandoffs extends Command
 
     protected $description = 'List work orders handed (or held) for the technicians\' inspection app';
 
-    public function handle(): int
+    public function handle(ApprovalGate $gate): int
     {
         $rows = InspectionAppHandoff::query()
-            ->with(['workOrder', 'aiInsight'])
+            ->with(['workOrder.vendors', 'aiInsight'])
             ->when($this->option('rule'), fn ($query, $rule) => $query->where('rule', $rule))
             ->when($this->option('status'), fn ($query, $status) => $query->where('status', $status))
             ->orderByDesc('id')
@@ -39,14 +40,16 @@ class ListInspectionAppHandoffs extends Command
 
         $this->table(
             ['WO#', 'Status', 'Rule', 'Estimate', 'AI', 'Reading / held reason', 'When'],
-            $rows->map(function (InspectionAppHandoff $row): array {
+            $rows->map(function (InspectionAppHandoff $row) use ($gate): array {
                 $reading = $row->aiInsight === null ? null : OwnerApprovalReader::summarize($row->aiInsight);
+                // The estimate the rule decided on: our crew's, never PropertyWare's $0.
+                $estimate = $row->workOrder === null ? null : $gate->estimate($row->workOrder);
 
                 return [
                     $row->workOrder?->work_order_no ?? $row->work_order_id,
                     $row->status,
                     $row->rule ?? '—',
-                    $row->workOrder?->cost_estimate === null ? '—' : '$'.number_format((float) $row->workOrder->cost_estimate, 2),
+                    $estimate === null ? '—' : '$'.number_format($estimate, 2),
                     $reading === null ? '—' : $reading['confidence'].'%',
                     Str::limit($row->status === InspectionAppHandoff::STATUS_HELD ? (string) $row->held_reason : (string) ($reading['summary'] ?? ''), 90),
                     ($row->sent_at ?? $row->updated_at)?->format('Y-m-d H:i') ?? '',

@@ -14,22 +14,24 @@ use Illuminate\Support\Str;
  * 2026-11-19-work-order-handoff-approval-filter-design.md):
  *
  *   0. An emergency goes, whatever it costs.
- *   1. Under the threshold ($300) goes: the office does not ask the owner.
- *   2. At or over it, an approval on record (approved_by / approved_date,
+ *   1. $300 or below goes, and so does no estimate yet: the office does not
+ *      ask the owner. $301 and up needs an approval.
+ *   2. Over it, an approval on record (approved_by / approved_date,
  *      synced from PropertyWare) goes.
  *   3. Otherwise it waits for the AI's reading of the owner's messages
  *      (OwnerApprovalReader), and says why it is waiting.
  *
- * The estimate is the work order's own; the crew's estimate on the vendor
- * pivot stands in when the work order has none. Zero means "not set" the way
- * PropertyWare sends it, so it counts as no estimate, never as cheap.
+ * The estimate is our crew's own, entered on the work order in the vendor
+ * portal or the Vendor Edit tab (the office, 2026-11-20). PropertyWare's
+ * estimate is left out -- it is $0 on every work order -- and so is an
+ * outside vendor's quote on the same work order, which is not the crew's job.
  */
 class ApprovalGate
 {
     /** What PropertyWare syncs into approved_by when nobody has. */
     private const NOT_AN_APPROVER = ['', 'n/a', 'na', 'none', 'null', '-'];
 
-    public function __construct(private OwnerApprovalReader $reader) {}
+    public function __construct(private OwnerApprovalReader $reader, private HandoffRule $rule) {}
 
     public function threshold(): float
     {
@@ -38,15 +40,10 @@ class ApprovalGate
 
     public function estimate(WorkOrder $workOrder): ?float
     {
-        $own = $this->positive($workOrder->cost_estimate);
-
-        if ($own !== null) {
-            return $own;
-        }
-
         $vendors = $workOrder->relationLoaded('vendors') ? $workOrder->vendors : $workOrder->vendors()->get();
 
         return $vendors
+            ->filter(fn (Vendor $vendor): bool => $this->rule->isInHouse($vendor))
             ->map(fn (Vendor $vendor): ?float => $this->positive($vendor->pivot?->cost_estimate))
             ->filter()
             ->max();
@@ -73,7 +70,7 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_EMERGENCY, $estimate, $threshold);
         }
 
-        if ($estimate !== null && $estimate < $threshold) {
+        if ($estimate === null || $estimate <= $threshold) {
             return ApprovalDecision::send(InspectionAppHandoff::RULE_UNDER_THRESHOLD, $estimate, $threshold);
         }
 
