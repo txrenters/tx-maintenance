@@ -29,7 +29,7 @@ class HandoffPayload
 {
     public const SOURCE_SYSTEM = 'tx-maintenance';
 
-    public function __construct(private HandoffRule $rule, private ApprovalGate $gate) {}
+    public function __construct(private HandoffRule $rule, private ApprovalGate $gate, private MessagesSummarizer $summarizer) {}
 
     /**
      * @param  InspectionAppHandoff|null  $row  The outbox row, for the rule that let it through and the AI reading behind it.
@@ -86,6 +86,9 @@ class HandoffPayload
             ])->values()->all(),
             'notes' => $this->notes($workOrder),
             'approval' => $this->approval($workOrder, $row),
+            // The stored summary only: writing it is HandoffService::push's job,
+            // so building a payload to compare hashes never calls the AI.
+            'messages_summary' => $this->summarizer->forPayload($workOrder),
         ];
     }
 

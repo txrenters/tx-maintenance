@@ -36,6 +36,13 @@ class AiInsight extends Model
      */
     public const TYPE_OWNER_APPROVAL = 'owner_approval';
 
+    /**
+     * A short summary of a work order's tenant, owner and vendor messages, sent
+     * to the inspection app with the hand-off (the office, 2026-11-21). One per
+     * work order; re-written only when a new message arrives.
+     */
+    public const TYPE_MESSAGES_SUMMARY = 'messages_summary';
+
     public const STATUS_OPEN = 'open';
 
     public const STATUS_ACCEPTED = 'accepted';

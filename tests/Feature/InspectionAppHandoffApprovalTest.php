@@ -46,6 +46,8 @@ class InspectionAppHandoffApprovalTest extends TestCase
             'services.inspection_app.handoff_vendor_names' => 'Texas Home Maintenance Pros|Crystal Creek Air, LLC|Crystal Creek Pest Control LLC',
             'services.inspection_app.handoff_skip_vendor_ids' => '4802084865',
             'services.inspection_app.handoff_ai_reader' => true,
+            // The messages summary has its own tests (InspectionAppHandoffMessagesSummaryTest).
+            'services.inspection_app.handoff_messages_summary' => false,
             'ai.default' => 'openai',
             'ai.providers.openai.key' => 'test-key',
         ]);
