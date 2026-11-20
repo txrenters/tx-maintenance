@@ -171,19 +171,38 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertSame(300.0, $decision->threshold);
     }
 
-    public function test_no_estimate_from_the_crew_sends_as_a_small_job(): void
+    public function test_no_estimate_from_the_crew_holds_until_the_crew_quotes_and_the_ai_does_not_read_it(): void
     {
-        $blank = $this->workOrder();
-        $this->thmpOn($blank);
-        $zero = $this->workOrder();
-        $this->thmpOn($zero, 0.0);
+        // The office (2026-11-20): "Hold until there's an estimate".
+        $workOrder = $this->workOrder(['approved_by' => 'J. Owner']);
+        $this->thmpOn($workOrder);
 
-        $none = $this->gate()->decide($blank->fresh(['vendors']));
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
 
-        $this->assertTrue($none->send);
-        $this->assertSame('under_threshold', $none->rule);
-        $this->assertNull($none->estimate);
-        $this->assertTrue($this->gate()->decide($zero->fresh(['vendors']))->send);
+        $this->assertFalse($decision->send);
+        $this->assertNull($decision->estimate);
+        $this->assertFalse($decision->needsReading);
+        $this->assertSame("Waiting for the crew's estimate", $decision->heldReason);
+    }
+
+    public function test_a_crew_that_quotes_zero_has_quoted(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 0.0);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertTrue($decision->send);
+        $this->assertSame('under_threshold', $decision->rule);
+        $this->assertSame(0.0, $decision->estimate);
+    }
+
+    public function test_an_emergency_goes_before_the_crew_has_quoted(): void
+    {
+        $workOrder = $this->workOrder(['is_emergency' => true]);
+        $this->thmpOn($workOrder);
+
+        $this->assertSame('emergency', $this->gate()->decide($workOrder->fresh(['vendors']))->rule);
     }
 
     public function test_the_propertyware_estimate_on_the_work_order_is_not_the_crews(): void

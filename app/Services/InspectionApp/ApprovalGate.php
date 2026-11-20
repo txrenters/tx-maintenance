@@ -13,23 +13,29 @@ use Illuminate\Support\Str;
  * work order the hand-off considers (docs/superpowers/specs/
  * 2026-11-19-work-order-handoff-approval-filter-design.md):
  *
- *   0. An emergency goes, whatever it costs.
- *   1. $300 or below goes, and so does no estimate yet: the office does not
- *      ask the owner. $301 and up needs an approval.
- *   2. Over it, an approval on record (approved_by / approved_date,
- *      synced from PropertyWare) goes.
- *   3. Otherwise it waits for the AI's reading of the owner's messages
+ *   0. An emergency goes, whatever it costs, quoted or not.
+ *   1. No estimate from the crew yet: it waits for one ("Hold until there's
+ *      an estimate", the office, 2026-11-20). Nothing to approve, so the AI
+ *      does not read it; the crew's estimate releases it (HandoffService is
+ *      called when it is saved, and the sweep checks every five minutes).
+ *   2. $300 or below goes: the office does not ask the owner.
+ *   3. Over it ($301 and up), an approval on record (approved_by /
+ *      approved_date, synced from PropertyWare) goes.
+ *   4. Otherwise it waits for the AI's reading of the owner's messages
  *      (OwnerApprovalReader), and says why it is waiting.
  *
  * The estimate is our crew's own, entered on the work order in the vendor
- * portal or the Vendor Edit tab (the office, 2026-11-20). PropertyWare's
- * estimate is left out -- it is $0 on every work order -- and so is an
- * outside vendor's quote on the same work order, which is not the crew's job.
+ * portal or the Vendor Edit tab. PropertyWare's estimate is left out -- it is
+ * $0 on every work order -- and so is an outside vendor's quote on the same
+ * work order, which is not the crew's job. A crew that types $0 has quoted.
  */
 class ApprovalGate
 {
     /** What PropertyWare syncs into approved_by when nobody has. */
     private const NOT_AN_APPROVER = ['', 'n/a', 'na', 'none', 'null', '-'];
+
+    /** The held reason, and the hand-off card's words, while the crew has not quoted. */
+    public const WAITING_FOR_THE_ESTIMATE = "Waiting for the crew's estimate";
 
     public function __construct(private OwnerApprovalReader $reader, private HandoffRule $rule) {}
 
@@ -44,8 +50,8 @@ class ApprovalGate
 
         return $vendors
             ->filter(fn (Vendor $vendor): bool => $this->rule->isInHouse($vendor))
-            ->map(fn (Vendor $vendor): ?float => $this->positive($vendor->pivot?->cost_estimate))
-            ->filter()
+            ->map(fn (Vendor $vendor): ?float => $this->amount($vendor->pivot?->cost_estimate))
+            ->filter(fn (?float $amount): bool => $amount !== null)
             ->max();
     }
 
@@ -70,7 +76,11 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_EMERGENCY, $estimate, $threshold);
         }
 
-        if ($estimate === null || $estimate <= $threshold) {
+        if ($estimate === null) {
+            return ApprovalDecision::hold(self::WAITING_FOR_THE_ESTIMATE, null, $threshold, false);
+        }
+
+        if ($estimate <= $threshold) {
             return ApprovalDecision::send(InspectionAppHandoff::RULE_UNDER_THRESHOLD, $estimate, $threshold);
         }
 
@@ -122,14 +132,13 @@ class ApprovalGate
             : sprintf('Estimate $%s is over %s, and no owner approval is recorded', number_format($estimate, 2), $limit);
     }
 
-    private function positive(mixed $value): ?float
+    /** A crew's typed amount: blank is "not quoted yet", $0 is a quote. */
+    private function amount(mixed $value): ?float
     {
-        if ($value === null || $value === '') {
+        if ($value === null || trim((string) $value) === '') {
             return null;
         }
 
-        $number = (float) $value;
-
-        return $number > 0 ? $number : null;
+        return max(0.0, (float) $value);
     }
 }
