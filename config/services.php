@@ -51,6 +51,9 @@ return [
         // A reading at or above this confidence sends the work order on its
         // own. The office chose no coordinator step (2026-11-19).
         'handoff_ai_confidence' => (int) env('INSPECTION_APP_HANDOFF_AI_MIN_CONFIDENCE', 80),
+        // The AI summarizes the work order's messages for the inspection app's
+        // work order dialog (the office, 2026-11-21). Off = no summary is sent.
+        'handoff_messages_summary' => env('INSPECTION_APP_HANDOFF_MESSAGES_SUMMARY_ENABLED', true),
         // True holds an AI-read approval instead of sending it, with the reading
         // shown on the work order; the office enters the approval in
         // PropertyWare to send. Off because the office asked for automatic.

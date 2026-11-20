@@ -42,6 +42,7 @@ class HandoffService
         private OwnerApprovalReader $reader,
         private HandoffPayload $payload,
         private InspectionAppClient $client,
+        private MessagesSummarizer $summarizer,
     ) {}
 
     public function enabled(): bool
@@ -286,6 +287,10 @@ class HandoffService
             return;
         }
 
+        // Written before the payload is built, so it rides on this send. A
+        // failed call keeps the last summary, or none.
+        $this->summarizer->refresh($workOrder);
+
         $payload = $this->payload->build($workOrder, $row);
         $row->forceFill(['attempts' => $row->attempts + 1, 'last_attempt_at' => now()])->save();
         $requestId = sprintf('txm-wo-%s-%d', $workOrder->work_order_no ?? $workOrder->id, $row->attempts);
@@ -388,7 +393,44 @@ class HandoffService
 
         $held = $this->sweepHeld($dryRun);
 
-        return ['checked' => $rows->count(), 'queued' => $queued, 'unchanged' => $unchanged] + $held;
+        return ['checked' => $rows->count(), 'queued' => $queued + $this->sweepMessages($dryRun), 'unchanged' => $unchanged] + $held;
+    }
+
+    /**
+     * Sent work orders with a text or email newer than their last send: sent
+     * again, so the inspection app's messages summary is written over (the
+     * office, 2026-11-21). A message does not touch work_orders.updated_at,
+     * so the changed-work-order sweep above never sees one.
+     */
+    private function sweepMessages(bool $dryRun): int
+    {
+        if (! $this->summarizer->enabled()) {
+            return 0;
+        }
+
+        $newer = fn (string $table) => fn ($query) => $query->selectRaw('1')
+            ->from($table)
+            ->whereColumn("{$table}.work_order_id", 'inspection_app_handoffs.work_order_id')
+            ->whereColumn("{$table}.created_at", '>', 'inspection_app_handoffs.sent_at');
+
+        $rows = InspectionAppHandoff::query()
+            ->where('status', InspectionAppHandoff::STATUS_SENT)
+            ->whereNotNull('sent_at')
+            ->where(fn ($query) => $query
+                ->whereExists($newer('work_order_conversations'))
+                ->orWhereExists($newer('owner_email_notifications'))
+                ->orWhereExists($newer('tenant_email_notifications')))
+            ->orderBy('id')
+            ->get();
+
+        if (! $dryRun) {
+            foreach ($rows as $row) {
+                $row->forceFill(['status' => InspectionAppHandoff::STATUS_PENDING])->save();
+                PushWorkOrderToInspectionApp::dispatch($row->id)->afterCommit();
+            }
+        }
+
+        return $rows->count();
     }
 
     /**
