@@ -11,6 +11,7 @@ use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\InspectionApp\HandoffService;
 use App\Services\PropertyWareService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -84,7 +85,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'reason' => 'vendor_change']);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_picking_an_outside_vendor_on_the_board_hands_nothing_off(): void
@@ -118,7 +121,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'reason' => 'vendor_change']);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_an_imported_work_order_that_arrives_with_thmp_is_handed_off(): void
@@ -130,7 +135,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
         $method->invoke($job, ['vendorIDs' => [Vendor::THMP_PROPERTYWARE_ID]], $workOrder->id, now()->toDateTimeString());
 
         $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'reason' => 'import']);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_a_reimport_with_the_same_vendor_does_not_hand_off_again(): void
@@ -143,7 +150,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
         $method->invoke($job, ['vendorIDs' => [Vendor::THMP_PROPERTYWARE_ID]], $workOrder->id, now()->toDateTimeString());
 
         $this->assertDatabaseCount('inspection_app_handoffs', 1);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_the_status_sync_hands_off_a_newly_assigned_thmp_but_not_an_existing_one(): void
@@ -157,7 +166,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
 
         $this->assertDatabaseCount('inspection_app_handoffs', 1);
         $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'reason' => 'status_sync']);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_the_full_import_hands_off_a_newly_assigned_thmp(): void
@@ -169,7 +180,9 @@ class InspectionAppHandoffTriggersTest extends TestCase
         $method->invoke($command, $workOrder->id, $this->thmp->id);
 
         $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'reason' => 'import_all']);
-        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+        // Assigned with no estimate yet: recorded, and held for the crew's quote.
+        $this->assertDatabaseHas('inspection_app_handoffs', ['status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_with_the_switch_off_no_trigger_writes_anything(): void
@@ -196,5 +209,53 @@ class InspectionAppHandoffTriggersTest extends TestCase
         $this->assertTrue($event->runInBackground);
         $this->assertTrue($event->withoutOverlapping);
         $this->assertLessThanOrEqual(60, $event->expiresAt);
+    }
+
+    // ---- The crew's estimate releases a work order held for it --------------
+
+    private function heldForTheEstimate(): WorkOrder
+    {
+        $workOrder = WorkOrder::factory()->create(['cost_estimate' => 0, 'approved_by' => null, 'approved_date' => null, 'is_emergency' => false]);
+        $workOrder->vendors()->attach($this->thmp->id, ['access_token' => 'tok-thmp']);
+        app(HandoffService::class)->consider($workOrder->id, 'vendor_change');
+        $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'status' => 'held', 'held_reason' => "Waiting for the crew's estimate"]);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+
+        return $workOrder;
+    }
+
+    public function test_the_crews_estimate_from_the_vendor_portal_sends_a_work_order_held_for_it(): void
+    {
+        $workOrder = $this->heldForTheEstimate();
+
+        $this->post(route('vendor.portal.estimate', 'tok-thmp'), ['cost_estimate' => 180])->assertRedirect();
+
+        $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'under_threshold']);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_the_crews_estimate_from_the_vendor_edit_tab_sends_a_work_order_held_for_it(): void
+    {
+        $workOrder = $this->heldForTheEstimate();
+        $crew = User::query()->findOrFail($this->thmp->user_id);
+        $crew->assignRole('vendor');
+
+        $this->actingAs($crew)->post(route('api.vendor_work_order_details.update'), [
+            'cost_estimate' => 250,
+            'work_order_id' => $workOrder->id,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'status' => 'pending', 'rule' => 'under_threshold']);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_an_estimate_over_300_moves_the_wait_to_the_owners_approval(): void
+    {
+        $workOrder = $this->heldForTheEstimate();
+
+        $this->post(route('vendor.portal.estimate', 'tok-thmp'), ['cost_estimate' => 950])->assertRedirect();
+
+        $this->assertDatabaseHas('inspection_app_handoffs', ['work_order_id' => $workOrder->id, 'status' => 'held', 'held_reason' => 'Estimate $950.00 is over $300, and no owner approval is recorded']);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 }

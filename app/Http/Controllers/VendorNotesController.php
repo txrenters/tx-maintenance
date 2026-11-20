@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\InspectionApp\HandoffService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,10 @@ class VendorNotesController extends Controller
                 (float) $validatedData['cost_estimate'],
                 $validatedData['time_estimate'] ?? null,
             );
+
+            // A work order held for our crew's estimate goes to the inspection
+            // app now, or moves on to wait for the owner's approval.
+            app(HandoffService::class)->consider($workOrder->id, 'estimate');
         } catch (\Throwable $th) {
             Log::error('Vendor notes failed: '.$th->getMessage());
         }

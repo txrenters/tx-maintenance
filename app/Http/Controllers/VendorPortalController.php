@@ -19,6 +19,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
+use App\Services\InspectionApp\HandoffService;
 use App\Services\PhoneFormatter;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
@@ -328,6 +329,10 @@ class VendorPortalController extends Controller
                 'time_estimate' => $validated['time_estimate'] ?? null,
                 'scheduled_end_date' => $validated['scheduled_end_date'] ?? null,
             ]);
+
+            // A work order held for our crew's estimate goes to the inspection
+            // app now, or moves on to wait for the owner's approval.
+            app(HandoffService::class)->consider($workOrder->id, 'estimate');
 
             return back()->with('success', 'Your estimate has been saved.');
         } catch (\Throwable $e) {

@@ -34,8 +34,9 @@ on every assignment:
 
 | # | Condition | Outcome |
 | --- | --- | --- |
-| 0 | `is_emergency` is true | Hand off now, whatever the cost. |
-| 1 | Crew's estimate $300 or below, or no estimate yet | Hand off now. Reason `under_threshold`. |
+| 0 | `is_emergency` is true | Hand off now, whatever the cost, quoted or not. |
+| 0b | Our crew has not entered an estimate yet | Hold: "Waiting for the crew's estimate". The AI does not read it. Saving the estimate re-decides it at once. |
+| 1 | Crew's estimate $300 or below ($0 counts as a quote) | Hand off now. Reason `under_threshold`. |
 | 2 | Over $300, approval recorded (`approved_by` or `approved_date` set) | Hand off now. Reason `owner_approved_recorded`. |
 | 3 | Over $300, nothing recorded | Hold. The AI reads the work order (below). |
 | 3a | …AI finds an approval with confidence ≥ 80 | Hand off now. Reason `owner_approved_in_messages`, with the reading attached. |
@@ -45,7 +46,9 @@ on every assignment:
 the work order in the vendor portal or on the Vendor Edit tab. PropertyWare's
 estimate is ignored (it is $0 on every open work order), and so is an outside
 vendor's quote on the same work order. $300 itself now goes; $301 needs an
-approval. No estimate counts as a small job and goes, where it used to hold.
+approval. A work order with no estimate from our crew waits for one ("Hold
+until there's an estimate"); the vendor portal and the Vendor Edit tab call
+the hand-off the moment the estimate is saved.
 
 The confidence bar is `services.inspection_app.handoff_ai_confidence`, default
 80. `services.inspection_app.handoff_ai_requires_confirmation`, default false,
