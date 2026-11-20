@@ -174,7 +174,7 @@ class InspectionAppHandoffApprovalTest extends TestCase
     public function test_no_estimate_from_the_crew_holds_until_the_crew_quotes_and_the_ai_does_not_read_it(): void
     {
         // The office (2026-11-20): "Hold until there's an estimate".
-        $workOrder = $this->workOrder(['approved_by' => 'J. Owner']);
+        $workOrder = $this->workOrder();
         $this->thmpOn($workOrder);
 
         $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
@@ -185,16 +185,42 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertSame("Waiting for the crew's estimate", $decision->heldReason);
     }
 
-    public function test_a_crew_that_quotes_zero_has_quoted(): void
+    public function test_an_approved_work_order_goes_before_the_crew_has_quoted(): void
     {
+        // The office (2026-11-21): "if it is approve move forward".
+        $workOrder = $this->workOrder(['approved_by' => 'J. Owner']);
+        $this->thmpOn($workOrder);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertTrue($decision->send);
+        $this->assertSame('owner_approved_recorded', $decision->rule);
+        $this->assertNull($decision->estimate);
+    }
+
+    public function test_a_zero_estimate_with_no_approval_holds(): void
+    {
+        // The office (2026-11-21): "if estimation is zero but no approve do not forward".
         $workOrder = $this->workOrder();
         $this->thmpOn($workOrder, 0.0);
 
         $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
 
-        $this->assertTrue($decision->send);
-        $this->assertSame('under_threshold', $decision->rule);
+        $this->assertFalse($decision->send);
         $this->assertSame(0.0, $decision->estimate);
+        $this->assertFalse($decision->needsReading);
+        $this->assertSame('Estimate is $0, and no owner approval is recorded', $decision->heldReason);
+    }
+
+    public function test_a_zero_estimate_with_an_approval_goes(): void
+    {
+        $workOrder = $this->workOrder(['approved_date' => '2026-11-20']);
+        $this->thmpOn($workOrder, 0.0);
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertTrue($decision->send);
+        $this->assertSame('owner_approved_recorded', $decision->rule);
     }
 
     public function test_an_emergency_goes_before_the_crew_has_quoted(): void
