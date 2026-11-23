@@ -141,6 +141,16 @@ class OwnerApprovalReader
         return $this->ask($workOrder, $this->text($workOrder, withApprovalFields: false));
     }
 
+    /**
+     * Whether the owner has written anything on this work order. An approval
+     * stands only on the owner's own words, so without one a reading could
+     * never approve and is not worth asking for.
+     */
+    public function ownerHasWritten(WorkOrder $workOrder): bool
+    {
+        return $this->ownerMessages($workOrder)->contains(fn (array $message): bool => $message['who'] === 'owner');
+    }
+
     public function latestFor(WorkOrder $workOrder): ?AiInsight
     {
         return AiInsight::query()

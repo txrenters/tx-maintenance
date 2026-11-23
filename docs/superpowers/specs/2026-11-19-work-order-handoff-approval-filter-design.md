@@ -35,7 +35,7 @@ on every assignment:
 | # | Condition | Outcome |
 | --- | --- | --- |
 | 0 | `is_emergency` is true | Hand off now, whatever the cost, quoted or not. |
-| 0b | Our crew has not entered an estimate yet | Hold: "Waiting for the crew's estimate". The AI does not read it. Saving the estimate re-decides it at once. |
+| 0b | Our crew has not entered an estimate yet | Hold: "Waiting for the crew's estimate". Once the owner has written, the AI reads the messages and a confident approval sends it (the office, 2026-11-24). Saving the estimate re-decides it at once. |
 | 1 | Crew's estimate $300 or below ($0 counts as a quote) | Hand off now. Reason `under_threshold`. |
 | 2 | Over $300, approval recorded (`approved_by` or `approved_date` set) | Hand off now. Reason `owner_approved_recorded`. |
 | 3 | Over $300, nothing recorded | Hold. The AI reads the work order (below). |
