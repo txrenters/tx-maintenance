@@ -173,7 +173,7 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertSame(300.0, $decision->threshold);
     }
 
-    public function test_no_estimate_from_the_crew_holds_until_the_crew_quotes_and_the_ai_does_not_read_it(): void
+    public function test_no_estimate_and_no_owner_message_holds_and_the_ai_does_not_read_it(): void
     {
         // The office (2026-11-20): "Hold until there's an estimate".
         $workOrder = $this->workOrder();
@@ -185,6 +185,73 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertNull($decision->estimate);
         $this->assertFalse($decision->needsReading);
         $this->assertSame("Waiting for the crew's estimate", $decision->heldReason);
+    }
+
+    public function test_no_estimate_with_an_owner_message_holds_and_asks_the_ai_to_read_it(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+
+        $decision = $this->gate()->decide($workOrder->fresh(['vendors']));
+
+        $this->assertFalse($decision->send);
+        $this->assertTrue($decision->needsReading);
+        $this->assertSame("Waiting for the crew's estimate", $decision->heldReason);
+    }
+
+    public function test_an_office_message_alone_is_not_read_before_the_crew_has_quoted(): void
+    {
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder);
+        Conversation::query()->create([
+            'message' => 'Hi, can we go ahead with the light?',
+            'sender_number' => '+12813787957',
+            'receiver_number' => '+15125550100',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'is_read' => true,
+        ]);
+
+        $this->assertFalse($this->gate()->decide($workOrder->fresh(['vendors']))->needsReading);
+    }
+
+    public function test_an_owner_approval_in_messages_sends_before_the_crew_has_quoted(): void
+    {
+        // The office (2026-11-24): an approval in the messages counts with no estimate.
+        Queue::fake();
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'Go ahead with the light.');
+
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+        Queue::assertPushed(ReadOwnerApprovalForHandoff::class, fn (ReadOwnerApprovalForHandoff $job) => $job->handoffId === $row->id);
+
+        $this->approvedReading();
+        $this->service()->readAndRelease($row->id);
+
+        $row->refresh();
+        $this->assertSame('pending', $row->status);
+        $this->assertSame('owner_approved_in_messages', $row->rule);
+        $this->assertNotNull($row->ai_insight_id);
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 1);
+    }
+
+    public function test_no_approval_in_messages_keeps_waiting_for_the_crews_estimate(): void
+    {
+        Queue::fake();
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder);
+        $this->ownerSaid($workOrder, 'How much will it be?');
+        $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+
+        $this->noApprovalReading();
+        $this->service()->readAndRelease($row->id);
+
+        $row->refresh();
+        $this->assertSame('held', $row->status);
+        $this->assertStringStartsWith("Waiting for the crew's estimate · AI read 1 owner message and found no approval", $row->held_reason);
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
     }
 
     public function test_an_approved_work_order_goes_before_the_crew_has_quoted(): void

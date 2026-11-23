@@ -18,8 +18,10 @@ use Illuminate\Support\Str;
  *      PropertyWare) goes, quoted or not ("if it is approve move forward",
  *      the office, 2026-11-21).
  *   2. No estimate from the crew yet: it waits for one ("Hold until there's
- *      an estimate", the office, 2026-11-20). Nothing to approve, so the AI
- *      does not read it; the crew's estimate releases it (HandoffService is
+ *      an estimate", the office, 2026-11-20), unless the AI reads an owner's
+ *      approval in the messages, which lets it go as a recorded one does
+ *      (the office, 2026-11-24). The AI reads only once the owner has
+ *      written. The crew's estimate also releases it (HandoffService is
  *      called when it is saved, and the sweep checks every five minutes).
  *   3. A $0 estimate with no approval waits ("if estimation is zero but no
  *      approve do not forward", the office, 2026-11-21).
@@ -86,15 +88,17 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
         }
 
-        if ($estimate === null) {
+        // Not quoted yet: only the owner's own words can let it go, so with
+        // none written there is nothing for the AI to read.
+        if ($estimate === null && ! ($this->reader->enabled() && $this->reader->ownerHasWritten($workOrder))) {
             return ApprovalDecision::hold(self::WAITING_FOR_THE_ESTIMATE, null, $threshold, false);
         }
 
-        if ($estimate <= 0.0) {
+        if ($estimate !== null && $estimate <= 0.0) {
             return ApprovalDecision::hold(self::ZERO_ESTIMATE_NOT_APPROVED, $estimate, $threshold, false);
         }
 
-        if ($estimate <= $threshold) {
+        if ($estimate !== null && $estimate <= $threshold) {
             return ApprovalDecision::send(InspectionAppHandoff::RULE_UNDER_THRESHOLD, $estimate, $threshold);
         }
 
@@ -138,7 +142,7 @@ class ApprovalGate
         $limit = '$'.number_format($threshold, $threshold == floor($threshold) ? 0 : 2);
 
         return $estimate === null
-            ? 'No estimate on the work order, and no owner approval is recorded'
+            ? self::WAITING_FOR_THE_ESTIMATE
             : sprintf('Estimate $%s is over %s, and no owner approval is recorded', number_format($estimate, 2), $limit);
     }
 
