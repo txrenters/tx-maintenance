@@ -41,6 +41,12 @@ class InspectionAppHandoff extends Model
     /** Pushed by number from the console: the office's own lever, no filter. */
     public const RULE_MANUAL = 'manual';
 
+    /**
+     * Sent before anyone approved it, under handoff_send_all_since (2026-11-26):
+     * the inspection app shows it as not approved, and approving happens there.
+     */
+    public const RULE_SENT_UNAPPROVED = 'sent_unapproved';
+
     protected $guarded = [];
 
     protected $casts = [

@@ -6,6 +6,7 @@ use App\Models\AiInsight;
 use App\Models\InspectionAppHandoff;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -86,6 +87,13 @@ class ApprovalGate
             return ApprovalDecision::send(InspectionAppHandoff::RULE_OWNER_APPROVED_RECORDED, $estimate, $threshold);
         }
 
+        // Sent approved or not (handoff_send_all_since): the inspection app
+        // decides. Nothing below runs, so the AI does not read the owner's
+        // messages for it either.
+        if ($this->sendsAll($workOrder)) {
+            return ApprovalDecision::send(InspectionAppHandoff::RULE_SENT_UNAPPROVED, $estimate, $threshold);
+        }
+
         if ($estimate === null) {
             return ApprovalDecision::hold(self::WAITING_FOR_THE_ESTIMATE, null, $threshold, false);
         }
@@ -131,6 +139,28 @@ class ApprovalGate
         $needsReading = $this->reader->enabled() && ($reading === null || $this->reader->isStale($workOrder, $reading));
 
         return ApprovalDecision::hold(Str::limit($reason, 200, ''), $estimate, $threshold, $needsReading);
+    }
+
+    /**
+     * Whether this work order goes across approved or not: created on or after
+     * handoff_send_all_since. Unset, or a work order from before it, keeps the
+     * filter, so switching it on never backfills.
+     */
+    public function sendsAll(WorkOrder $workOrder): bool
+    {
+        $since = trim((string) config('services.inspection_app.handoff_send_all_since', ''));
+
+        if ($since === '') {
+            return false;
+        }
+
+        $created = $workOrder->created_date ?? $workOrder->created_at;
+
+        if ($created === null) {
+            return false;
+        }
+
+        return ! Carbon::parse((string) $created)->lt(Carbon::parse($since)->startOfDay());
     }
 
     private function heldReason(?float $estimate, float $threshold): string

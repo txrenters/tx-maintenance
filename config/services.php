@@ -40,6 +40,13 @@ return [
         // created before this date is never handed off for the first time.
         // ISO date, e.g. 2026-12-01. Unset = every open work order qualifies.
         'handoff_since' => env('INSPECTION_APP_HANDOFF_SINCE') ?: null,
+        // Every new work order for our crews goes across, approved or not
+        // (the office, 2026-11-26: "fetch the new work orders that is assign
+        // to thmp, approve or not, no backfill"); the inspection app shows
+        // it as not approved and approving moves there. Only work orders
+        // created on or after this ISO date; older ones keep the filter
+        // below, so nothing is backfilled. Unset = the filter, as before.
+        'handoff_send_all_since' => env('INSPECTION_APP_HANDOFF_SEND_ALL_SINCE') ?: null,
         // Only work orders a crew may start are sent (docs/superpowers/specs/
         // 2026-11-19-work-order-handoff-approval-filter-design.md). Under this
         // estimate the office does not ask the owner; at or over it, the owner
