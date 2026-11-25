@@ -407,6 +407,62 @@ class InspectionAppHandoffApprovalTest extends TestCase
         $this->assertFalse($this->service()->startedBeforeGoLive($new));
     }
 
+    // ---- Approved or not (2026-11-26) --------------------------------------
+
+    public function test_send_all_is_off_unless_its_date_is_set(): void
+    {
+        $this->assertNull(config('services.inspection_app.handoff_send_all_since'));
+
+        $workOrder = $this->workOrder();
+        $this->thmpOn($workOrder, 450.0);
+
+        $this->assertFalse($this->gate()->decide($workOrder->fresh(['vendors']))->send);
+    }
+
+    public function test_from_its_date_a_work_order_goes_approved_or_not_with_no_estimate_and_no_reading(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_send_all_since' => '2026-12-01']);
+        $noEstimate = $this->workOrder(['created_date' => '2026-12-02']);
+        $overThreshold = $this->workOrder(['created_date' => '2026-12-02']);
+        $this->thmpOn($noEstimate);
+        $this->thmpOn($overThreshold, 450.0);
+
+        foreach ([$noEstimate, $overThreshold] as $workOrder) {
+            $row = $this->service()->consider($workOrder->id, 'vendor_assigned');
+            $this->assertSame('pending', $row->status);
+            $this->assertSame('sent_unapproved', $row->rule);
+            $this->assertNull($row->held_reason);
+        }
+        Queue::assertPushed(PushWorkOrderToInspectionApp::class, 2);
+        // The inspection app decides: the owner's messages are not read for it.
+        Queue::assertNotPushed(ReadOwnerApprovalForHandoff::class);
+    }
+
+    public function test_send_all_keeps_the_rule_of_an_emergency_or_an_approval_on_record(): void
+    {
+        config(['services.inspection_app.handoff_send_all_since' => '2026-12-01']);
+        $emergency = $this->workOrder(['created_date' => '2026-12-02', 'is_emergency' => true]);
+        $approved = $this->crewEstimate(450.0, ['created_date' => '2026-12-02', 'approved_by' => 'J. Owner']);
+
+        $this->assertSame('emergency', $this->gate()->decide($emergency)->rule);
+        $this->assertSame('owner_approved_recorded', $this->gate()->decide($approved)->rule);
+    }
+
+    public function test_send_all_never_backfills_a_work_order_from_before_its_date(): void
+    {
+        Queue::fake();
+        config(['services.inspection_app.handoff_send_all_since' => '2026-12-01']);
+        $old = $this->workOrder(['created_date' => '2026-11-28']);
+        $this->thmpOn($old, 450.0);
+
+        $row = $this->service()->consider($old->id, 'vendor_assigned');
+
+        $this->assertSame('held', $row->status);
+        $this->assertFalse($this->gate()->sendsAll($old));
+        Queue::assertNotPushed(PushWorkOrderToInspectionApp::class);
+    }
+
     public function test_the_manual_push_by_number_skips_the_filter_and_says_so(): void
     {
         Http::fake(['*' => Http::response(['id' => 'insp_1'], 201)]);
