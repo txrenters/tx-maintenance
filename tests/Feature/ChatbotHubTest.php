@@ -6,6 +6,7 @@ use App\Jobs\ImportChatbotMedia;
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SyncPortalConversationToChatbot;
 use App\Models\Conversation;
+use App\Models\Tenants;
 use App\Models\WorkOrder;
 use App\Services\ChatbotHub;
 use App\Services\InboundTwilioMessageProcessor;
@@ -47,6 +48,47 @@ class ChatbotHubTest extends TestCase
             && $request['sender_email'] === 'staff@example.com'
             && $request['idempotency_key'] === 'tx-maintenance:conversation:'.$message->id.':0');
         $this->assertSame('outbound', $message->fresh()->chatbot_direction);
+    }
+
+    public function test_a_thread_opened_before_the_tenant_was_imported_is_reused_once_they_are(): void
+    {
+        Http::fake([
+            'chatbot.test/api/v1/threads' => Http::response(['data' => ['id' => 42]], 201),
+            'chatbot.test/api/v1/threads/42/messages' => Http::sequence()->push(['data' => ['id' => 91, 'status' => 'pending']], 202)->push(['data' => ['id' => 92, 'status' => 'pending']], 202),
+        ]);
+        $first = $this->conversation();
+        $hub = app(ChatbotHub::class);
+        $hub->send($first, 'Hello');
+
+        // The tenant arrives from PropertyWare later, so the next text keys the
+        // thread by their contact id, and the support app hands back thread 42.
+        $tenant = Tenants::factory()->create(['mobile_phone' => '5551111111', 'propertyware_id' => '7660765231']);
+        $first->work_order->tenants()->attach($tenant->id);
+        $second = $first->replicate(['twilio_status', 'chatbot_thread_id', 'chatbot_direction']);
+        $second->save();
+
+        $hub->send($second, 'Following up');
+
+        $this->assertDatabaseCount('chatbot_threads', 1);
+        $this->assertSame('42', $second->fresh()->chatbot_thread_id);
+        $this->assertDatabaseHas('chatbot_message_deliveries', ['conversation_id' => $second->id, 'hub_message_id' => '92']);
+    }
+
+    public function test_a_thread_the_support_app_reopened_is_reused_when_maintenance_texts_again(): void
+    {
+        Http::fake([
+            'chatbot.test/api/v1/threads' => Http::response(['data' => ['id' => 77]], 201),
+            'chatbot.test/api/v1/threads/77/messages' => Http::response(['data' => ['id' => 91, 'status' => 'pending']], 202),
+        ]);
+        $message = $this->conversation();
+        // Linked from a reply in a closed thread, under the closed thread's key.
+        DB::table('chatbot_threads')->insert(['local_key' => 'closed:77', 'hub_thread_id' => '77', 'work_order_id' => $message->work_order_id, 'party' => 'tenant', 'phone' => '+15551111111', 'created_at' => now(), 'updated_at' => now()]);
+
+        app(ChatbotHub::class)->send($message, 'Hello');
+
+        $this->assertDatabaseCount('chatbot_threads', 1);
+        $this->assertSame('77', $message->fresh()->chatbot_thread_id);
+        $this->assertSame('pending', $message->fresh()->twilio_status);
     }
 
     public function test_a_sender_without_a_support_account_is_sent_as_the_default_staff_account(): void

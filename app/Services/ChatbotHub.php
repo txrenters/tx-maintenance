@@ -205,7 +205,11 @@ class ChatbotHub
                 throw new RuntimeException('Chatbot did not return a thread ID.');
             }
 
-            DB::table('chatbot_threads')->insert([
+            // The support app keeps one open thread per work order and number, so
+            // it can hand back a thread already linked here under another key
+            // (opened before the contact was imported, or linked from a reply).
+            // That thread is the one to use: a duplicate link must never stop the text.
+            DB::table('chatbot_threads')->insertOrIgnore([
                 'local_key' => $key,
                 'hub_thread_id' => (string) $response['id'],
                 'work_order_id' => $workOrder->id,
@@ -216,7 +220,7 @@ class ChatbotHub
                 'updated_at' => now(),
             ]);
 
-            return DB::table('chatbot_threads')->where('local_key', $key)->first();
+            return DB::table('chatbot_threads')->where('hub_thread_id', (string) $response['id'])->first();
         });
     }
 
